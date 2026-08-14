@@ -3,11 +3,20 @@ import uuid
 import datetime
 import json
 import os
-import secrets
+import requests
+import re
+import secrets  # 👈 Добавь импорт
+
+# ========== 1. СОЗДАЁМ APP ==========
+app = Flask(__name__)
+
+# ========== 2. ЗАДАЁМ СЕКРЕТНЫЙ КЛЮЧ ==========
 app.secret_key = secrets.token_urlsafe(32)
+
 # Хранилище данных
 logs_db = {}
 links_db = {}
+}
 
 # ===================== СТРАНИЦА-ЛОГГЕР (С НАСТРОЙКАМИ) =====================
 LOGGER_HTML = """
