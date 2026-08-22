@@ -12,9 +12,9 @@ from datetime import datetime
 from flask import Flask, request, jsonify, render_template_string
 
 # ============ КОНФИГ ============
-OWNER_IDS = [744709325, 7949152984]
-BOT_TOKEN = "8988753811:AAGCcjuqQT-m0broYRfqY3NENTpXx7jSyvg"
-BASE_URL = "https://okak-4u9q.onrender.com/"
+OWNER_IDS = [int(os.environ.get('OWNER_ID', 744709325))]
+BOT_TOKEN = os.environ.get('BOT_TOKEN', '')
+BASE_URL = os.environ.get('BASE_URL', '')
 FISHING_DATA_FOLDER = "fishing_data"
 os.makedirs(FISHING_DATA_FOLDER, exist_ok=True)
 
